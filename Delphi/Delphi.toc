@@ -1,0 +1,43 @@
+## Interface: 30400
+## Author: Naan
+## Version: 0.01
+## Title: Delphi
+## DefaultState: Enabled
+## Notes: Custom
+
+# Utility functions with no external dependencies
+Table.lua
+
+Global_Tables.lua
+Global_Strings.lua
+Global_Blacklist.lua
+
+Core_Input_Keybinds.lua
+
+Core_Output_Pythia.lua
+Core_Output_UI.lua
+Core_Output_CLI.lua
+
+Unit_Logic.lua
+Unit_Abilities.lua
+Units.lua
+
+Spell.lua
+
+Item.lua
+
+SpellUnit_Delegates_Bool.lua
+SpellUnit_Delegates_Rank.lua
+SpellUnit_CastLoops.lua
+
+World.lua
+
+Class_Druid.lua
+Class_Warlock.lua
+Class_DeathKnight.lua
+Class_Priest.lua
+Class_Paladin.lua
+
+Core_Events.lua
+
+Core_Bootstrap.lua
