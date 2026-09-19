@@ -1,4 +1,4 @@
-## Interface: 30400
+## Interface: 16001
 ## Author: Naan
 ## Version: 0.01
 ## Title: Delphi
@@ -32,9 +32,6 @@ SpellUnit_CastLoops.lua
 
 World.lua
 
-Class_Druid.lua
-Class_Warlock.lua
-Class_DeathKnight.lua
 Class_Priest.lua
 Class_Paladin.lua
 
