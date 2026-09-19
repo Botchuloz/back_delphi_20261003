@@ -160,7 +160,12 @@ local delphi_meta = {__index = function(t,metric)
                 elseif resource_metric == "mana" then -- _unit[unit].resource.mana
                     return UnitPower("player",0)
                 elseif resource_metric == "mana_percent" then
-                    return UnitPower("player",0) / UnitPowerMax("player",0)
+                    local current_mana = UnitPower("player",0)
+                    local max_mana = UnitPowerMax("player",0)
+                    if issecretvalue(current_mana) or issecretvalue(max_mana) then
+                    return 0
+                    end
+                    return current_mana / max_mana
                 elseif resource_metric == "rage" then
                     return UnitPower("player",1)
                 elseif resource_metric == "energy" then

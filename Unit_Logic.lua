@@ -1,16 +1,16 @@
 
 --local unit_health,unit_health_perc,unit_health_max,unit_health_deficit = UnitHealthInfo(unit)
 function UnitHealthInfo(unit)
-    local unit_health       = UnitHealth(unit)
-    local unit_health_max   = UnitHealthMax(unit)
-    local unit_health_perc  = 0
+    local unit_health = SafeNumber(UnitHealth(unit), 0)
+    local unit_health_max = SafeNumber(UnitHealthMax(unit), 100)
+    local unit_health_perc = 0
 
     if unit_health == 0 or unit_health_max <= 0 then
-        return 0,0,100,0
+    return 0,0,100,0
     else
-        unit_health_perc = unit_health / unit_health_max
-        unit_health_deficit = unit_health_max - unit_health
-        return unit_health,unit_health_perc,unit_health_max,unit_health_deficit
+    unit_health_perc = unit_health / unit_health_max
+    local unit_health_deficit = unit_health_max - unit_health
+    return unit_health,unit_health_perc,unit_health_max,unit_health_deficit
     end
 end
 
