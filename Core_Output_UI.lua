@@ -3,25 +3,25 @@ local _icons = {}
 function CreateNewStatusIcon(icon_name,x,y,delegate)
     local _icon = {}
 
-    _icon.pixel = CreateFrame("Frame", nil, UIParent)
+    _icon.pythia = CreateFrame("Frame", nil, UIParent)
     --[[dragonflight day zero]]
-    --_icon.pixel:SetFrameStrata ("TOOLTIP")
-    _icon.pixel:SetFrameStrata ("TOOLTIP")
+    --_icon.pythia:SetFrameStrata ("TOOLTIP")
+    _icon.pythia:SetFrameStrata ("TOOLTIP")
     --[[/dragonflight day zero]]
-    _icon.pixel:SetWidth (30)
-    _icon.pixel:SetHeight (30)
+    _icon.pythia:SetWidth (30)
+    _icon.pythia:SetHeight (30)
     --[[dragonflight day zero]]
-    _icon.colour = _icon.pixel:CreateTexture (nil, "OVERLAY")
+    _icon.colour = _icon.pythia:CreateTexture (nil, "OVERLAY")
     --[[/dragonflight day zero]]
     _icon.colour:SetColorTexture (0, 0, 0)
-    _icon.colour:SetAllPoints (_icon.pixel)
+    _icon.colour:SetAllPoints (_icon.pythia)
 
-    _icon.pixel.texture = _icon.colour 
-    _icon.pixel:SetPoint ("CENTER", x, y) 
-    _icon.pixel:Show ()
+    _icon.pythia.texture = _icon.colour 
+    _icon.pythia:SetPoint ("CENTER", x, y) 
+    _icon.pythia:Show ()
     --[[dragonflight day zero]]
-    --_icon.label = _icon.pixel:CreateFontString("test","TOOLTIP","GameFontNormal")
-    _icon.label = _icon.pixel:CreateFontString("test","OVERLAY","GameFontNormal")
+    --_icon.label = _icon.pythia:CreateFontString("test","TOOLTIP","GameFontNormal")
+    _icon.label = _icon.pythia:CreateFontString("test","OVERLAY","GameFontNormal")
     --[[/dragonflight day zero]]
     _icon.label:SetPoint("CENTER",0,-25)
     _icon.label:SetText(icon_name)
@@ -39,19 +39,19 @@ end
 function CreateNewLabel(icon_name,x,y,delegate)
     local _icon = {}
     --base icon object
-    _icon.pixel = CreateFrame("Frame", nil, UIParent)
+    _icon.pythia = CreateFrame("Frame", nil, UIParent)
     --[[dragonflight day zero]]
-    --_icon.pixel:SetFrameStrata ("TOOLTIP")
-    _icon.pixel:SetFrameStrata ("TOOLTIP")
+    --_icon.pythia:SetFrameStrata ("TOOLTIP")
+    _icon.pythia:SetFrameStrata ("TOOLTIP")
     --[[/dragonflight day zero]]
-    _icon.pixel:SetWidth (1)
-    _icon.pixel:SetHeight (1)
-    _icon.pixel:SetPoint ("CENTER", x, y) 
-    _icon.pixel:Show ()
+    _icon.pythia:SetWidth (1)
+    _icon.pythia:SetHeight (1)
+    _icon.pythia:SetPoint ("CENTER", x, y) 
+    _icon.pythia:Show ()
     --label
     --[[dragonflight day zero]]
-    --_icon.label = _icon.pixel:CreateFontString("test","TOOLTIP","GameFontNormal")
-    _icon.label = _icon.pixel:CreateFontString("test","OVERLAY","GameFontNormal")
+    --_icon.label = _icon.pythia:CreateFontString("test","TOOLTIP","GameFontNormal")
+    _icon.label = _icon.pythia:CreateFontString("test","OVERLAY","GameFontNormal")
     --[[/dragonflight day zero]]
     _icon.label:SetPoint("CENTER",0,-25)
     _icon.label:SetText(icon_name)

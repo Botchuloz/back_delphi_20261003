@@ -18,7 +18,7 @@ delphi.error  = {}
 --delphi.buttons= {}
 
 delphi.runtime  = {} -- godlies current statuses (eg, profile == aoe, cleave == off)
-delphi.pythia   = {} -- the pythias we use (currently just "instant" and "global")
+delphi.pythia   = {} -- the pixels we use (currently just "instant" and "global")
 
 delphi.keyboard = {}
 delphi.keyboard.key_ascii = {} -- ascii value for that key
