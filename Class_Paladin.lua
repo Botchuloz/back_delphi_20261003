@@ -116,7 +116,7 @@ function _paladin.SetBinds()
     end
     bind_once = 1
 
-    CreateButton("start_attack","G","/startattack")
+    BindSpellToUnit("start_attack","","","/startattack",true)
     CreateIconAndButton("NUMPAD3",250+300,-150,"",2) -- healer or dpser
 
     --Seals - player only

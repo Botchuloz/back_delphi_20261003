@@ -197,6 +197,24 @@ local bare_key_blacklist = {
     ["Q"] = true,        -- Don't allow bare "Q" 
     ["F"] = true,        -- Don't allow bare "F"
     ["B"] = true,        -- NEWLY ADDED - don't allow bare "B"
+
+    -- Default UI panel keys
+    ["C"] = true,        -- Character pane
+    ["J"] = true,        -- Guild
+    ["K"] = true,        -- Talents
+    ["P"] = true,        -- Spellbook & Abilities
+    ["L"] = true,        -- Quest Log
+    ["O"] = true,        -- Social
+    ["U"] = true,        -- Reputation pane
+    ["H"] = true,        -- PvP / Honor pane (Classic-era default, carried into Forever)
+
+    -- WoW Forever-specific combat rebinds (differ from retail defaults)
+    ["T"] = true,        -- ATTACKTARGET on Forever (was "Chat" on retail)
+    ["F"] = true,        -- ASSISTTARGET on Forever (was "Interact with Target" on retail)
+    ["G"] = true,        -- TARGETLASTHOSTILE on Forever (was "ping" on retail)
+
+    -- Chat
+    ["R"] = true,        -- Reply to last whisper
     
     -- Navigation keys require modifiers (including arrow keys)
     ["INSERT"] = true,
