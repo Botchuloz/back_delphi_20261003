@@ -195,8 +195,8 @@ local bare_key_blacklist = {
     ["N"] = true,        -- Don't allow bare "N"
     ["E"] = true,        -- Don't allow bare "E"
     ["Q"] = true,        -- Don't allow bare "Q" 
-    ["F"] = true,        -- Don't allow bare "F"
     ["B"] = true,        -- NEWLY ADDED - don't allow bare "B"
+
 
     -- Default UI panel keys
     ["C"] = true,        -- Character pane
@@ -208,13 +208,22 @@ local bare_key_blacklist = {
     ["U"] = true,        -- Reputation pane
     ["H"] = true,        -- PvP / Honor pane (Classic-era default, carried into Forever)
 
+
     -- WoW Forever-specific combat rebinds (differ from retail defaults)
     ["T"] = true,        -- ATTACKTARGET on Forever (was "Chat" on retail)
     ["F"] = true,        -- ASSISTTARGET on Forever (was "Interact with Target" on retail)
     ["G"] = true,        -- TARGETLASTHOSTILE on Forever (was "ping" on retail)
 
+
     -- Chat
     ["R"] = true,        -- Reply to last whisper
+
+    -- Remaining alpha keys (V, W, X, Y, Z) - no confirmed default action,
+    -- reserved defensively so every bare A-Z key is off-limits
+    ["V"] = true,        -- Reserved, unconfirmed default
+    ["X"] = true,        -- Reserved, unconfirmed default
+    ["Y"] = true,        -- Achievements (legacy default) / reserved
+    ["Z"] = true,        -- Reserved, unconfirmed default
     
     -- Navigation keys require modifiers (including arrow keys)
     ["INSERT"] = true,
