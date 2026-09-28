@@ -1,15 +1,18 @@
 local _paladin  = {}
 local _spell    = {}
 
+
 local _unitids = delphi.unitids
 local _unit    = delphi.unit
 local _instant = delphi.pythia.instant
 local _global  = delphi.pythia.global
 
+
 --==========================================================================
 -- WoW: Forever Paladin spell list, Level 1-60
 -- Source: talentsforever.com/paladin (beta client, Level 60, no gear)
 --==========================================================================
+
 
 --Holy
 _spell.holy_light          = "Holy Light"
@@ -32,11 +35,13 @@ _spell.holy_wrath           = "Holy Wrath"
 _spell.greater_blessing_of_light  = "Greater Blessing of Light"
 _spell.greater_blessing_of_wisdom = "Greater Blessing of Wisdom"
 
+
 --Holy - talents
 _spell.holy_shock           = "Holy Shock"        --TALENT
 _spell.lights_vigil         = "Light's Vigil"     --TALENT, New
 _spell.divine_favor         = "Divine Favor"      --TALENT
 _spell.voice_of_truth       = "Voice of Truth"    --TALENT, New
+
 
 --Protection
 _spell.devotion_aura        = "Devotion Aura"
@@ -58,10 +63,12 @@ _spell.blessing_of_sacrifice = "Blessing of Sacrifice"
 _spell.greater_blessing_of_kings = "Greater Blessing of Kings" --Reworked
 _spell.greater_blessing_of_salvation = "Greater Blessing of Salvation" --Reworked
 
+
 --Protection - talents
 _spell.holy_shield          = "Holy Shield" --TALENT, Reworked
 _spell.swift_judgement      = "Swift Judgement" --TALENT, New
 _spell.templars_bulwark     = "Templar's Bulwark" --TALENT, New
+
 
 --Retribution
 _spell.blessing_of_might    = "Blessing of Might" --Reworked
@@ -73,12 +80,15 @@ _spell.blessing_of_kings    = "Blessing of Kings" --Reworked
 _spell.seal_of_command      = "Seal of Command"
 _spell.greater_blessing_of_might = "Greater Blessing of Might" --Reworked
 
+
 --Retribution - talents
 _spell.repentance           = "Repentance" --TALENT
+
 
 local holy_spec = 1
 local prot_spec = 2
 local ret_spec  = 3
+
 
 --==========================================================================
 -- Spec detection - NOT CURRENTLY CALLED. CoreLogic() uses the NUMPAD3
@@ -92,22 +102,28 @@ local function SpellKnown(spellName)
     end
 end
 
+
 local function GetPaladinSpec()
     if 1 == 0 then
+
 
     elseif SpellKnown(_spell.holy_shock) then
         return holy_spec
 
+
     elseif SpellKnown(_spell.holy_shield) or SpellKnown(_spell.templars_bulwark) then
         return prot_spec
 
+
     elseif SpellKnown(_spell.seal_of_command) or SpellKnown(_spell.repentance) then
         return ret_spec
+
 
     else
         return 0
     end
 end
+
 
 local bind_once = 0
 function _paladin.SetBinds()
@@ -116,14 +132,17 @@ function _paladin.SetBinds()
     end
     bind_once = 1
 
+
     BindSpellToUnit("start_attack","","","/startattack",true)
     CreateIconAndButton("NUMPAD3",250+300,-150,"",2) -- healer or dpser
+
 
     --Seals - player only
     BindSpellToUnits(_spell.seal_of_righteousness, _unitids.player)
     BindSpellToUnits(_spell.seal_of_command,       _unitids.player)
     BindSpellToUnits(_spell.seal_of_the_crusader,  _unitids.player)
     BindSpellToUnits(_spell.seal_of_fury,          _unitids.player)
+
 
     --Auras and self-blessings - player only
     BindSpellToUnits(_spell.devotion_aura,         _unitids.player)
@@ -134,12 +153,14 @@ function _paladin.SetBinds()
     BindSpellToUnits(_spell.blessing_of_wisdom,    _unitids.player)
     BindSpellToUnits(_spell.righteous_fury,        _unitids.player)
 
+
     --Offense - standard hostile fallback chain
     BindSpellToUnits(_spell.judgement,             _unitids.standard_hostile)
     BindSpellToUnits(_spell.holy_strike,           _unitids.standard_hostile)
     BindSpellToUnits(_spell.hammer_of_justice,     _unitids.standard_hostile)
     BindSpellToUnits(_spell.exorcism,              _unitids.standard_hostile)
     BindSpellToUnits(_spell.hammer_of_wrath,       _unitids.standard_hostile)
+
 
     --Heals and friendly buffs - standard friendly fallback chain
     BindSpellToUnits(_spell.flash_of_light,        _unitids.standard_friendly)
@@ -151,12 +172,24 @@ function _paladin.SetBinds()
     BindSpellToUnits(_spell.blessing_of_sacrifice, _unitids.standard_friendly)
     BindSpellToUnits(_spell.redemption,            _unitids.standard_friendly)
 
+
     --Area/self effects - player only
     BindSpellToUnits(_spell.consecration,          _unitids.player)
     BindSpellToUnits(_spell.holy_wrath,            _unitids.player)
     BindSpellToUnits(_spell.divine_shield,         _unitids.player)
     BindSpellToUnits(_spell.divine_protection,     _unitids.player)
+
+
+    --Racials - player only (Human). Sourced from Global_Abilities_Racials.lua,
+    --nil on any other race, so these are no-ops if not applicable.
+    if delphi.racial.willtosurvive then
+        BindSpellToUnits(delphi.racial.willtosurvive, _unitids.player)
+    end
+    if delphi.racial.perception then
+        BindSpellToUnits(delphi.racial.perception, _unitids.player)
+    end
 end
+
 
 --=================================================================
 -- CoreLogic - CONFIRMED calling convention from your real
@@ -171,18 +204,38 @@ end
 function _paladin.CoreLogic()
     local heal_on,dps_on = BiStateCheck("NUMPAD3","healer","dpser")
 
+
     if 1 == 0 then
+
 
     elseif RedLight() then
         _global.Off()
 
+
+    elseif delphi.racial.perception and CastSpellUnits(
+        delphi.racial.perception
+        ,_unitids.player
+        ,RemainingCooldown(delphi.racial.perception) < 0.5
+        --PLACEHOLDER: fires off cooldown until SpellUnit_RecentStealthCastNearby()
+        --lands in Core_Events.lua (stealth-cast detection hook, not yet wired in).
+        ,{
+            SpellUnit_AliveAndFriendly
+        }
+    ) then
+        --print("Perception")
+
+
     elseif GodlyIsDD() then
+
 
         if 1 == 0 then
 
+
         elseif heal_on then
 
+
             if 1 == 0 then
+
 
             elseif CastSpellUnits(
                 _spell.flash_of_light
@@ -197,13 +250,17 @@ function _paladin.CoreLogic()
             ) then
                 --print("Flash of Light")
 
+
             else
                 _global.Off()
             end
 
+
         elseif dps_on then
 
+
             if 1 == 0 then
+
 
             elseif CastSpellUnits(
                 _spell.seal_of_the_crusader
@@ -215,6 +272,7 @@ function _paladin.CoreLogic()
                 }
             ) then
                 --print("Seal of the Crusader")
+
 
             elseif CastSpellUnits(
                 _spell.judgement
@@ -228,6 +286,7 @@ function _paladin.CoreLogic()
             ) then
                 --print("Judgement")
 
+
             elseif CastSpellUnits(
                 _spell.holy_strike
                 ,_unitids.standard_hostile
@@ -240,22 +299,29 @@ function _paladin.CoreLogic()
             ) then
                 --print("Holy Strike")
 
+
             else
                 _global.Off()
             end
+
 
         else
             _global.Off()
         end
 
+
     elseif GodlyIsAOE() then
 
+
         if 1 == 0 then
+
 
         elseif heal_on then
             --PLACEHOLDER: same as the dd heal check above.
 
+
             if 1 == 0 then
+
 
             elseif CastSpellUnits(
                 _spell.flash_of_light
@@ -270,14 +336,18 @@ function _paladin.CoreLogic()
             ) then
                 --print("Flash of Light (aoe placeholder)")
 
+
             else
                 _global.Off()
             end
 
+
         elseif dps_on then
             --PLACEHOLDER: same as the dd damage chain above.
 
+
             if 1 == 0 then
+
 
             elseif CastSpellUnits(
                 _spell.seal_of_the_crusader
@@ -289,6 +359,7 @@ function _paladin.CoreLogic()
                 }
             ) then
                 --print("Seal of the Crusader (aoe placeholder)")
+
 
             elseif CastSpellUnits(
                 _spell.judgement
@@ -302,6 +373,7 @@ function _paladin.CoreLogic()
             ) then
                 --print("Judgement (aoe placeholder)")
 
+
             elseif CastSpellUnits(
                 _spell.holy_strike
                 ,_unitids.standard_hostile
@@ -314,18 +386,22 @@ function _paladin.CoreLogic()
             ) then
                 --print("Holy Strike (aoe placeholder)")
 
+
             else
                 _global.Off()
             end
+
 
         else
             _global.Off()
         end
 
+
     else
         _global.Off()
     end
 end
+
 
 --pack it up and store it in global space
 _paladin.spell = _spell
