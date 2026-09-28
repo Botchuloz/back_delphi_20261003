@@ -14,9 +14,11 @@ local _global  = delphi.pythia.global
 --   /run delphi.override.seal = 0                      -- Auto (role/branch default)
 --   /run delphi.override.seal = "Seal of Command"       -- Manual (cast this instead)
 --   /run delphi.override.seal = false                   -- Disabled (cast nothing here)
+-- Same pattern applies to delphi.override.aura.
 --==========================================================================
 delphi.override = delphi.override or {}
 delphi.override.seal = delphi.override.seal or 0
+delphi.override.aura = delphi.override.aura or 0
 
 
 --==========================================================================
@@ -385,10 +387,23 @@ function _paladin.CoreLogic()
         elseif dps_on then
 
 
+            local aura = ResolveOverride(delphi.override.aura, _spell.retribution_aura)
             local seal = ResolveOverride(delphi.override.seal, _spell.seal_of_the_crusader)
 
 
             if 1 == 0 then
+
+
+            elseif aura and CastSpellUnits(
+                aura
+                ,_unitids.player
+                ,true
+                ,{
+                    SpellUnit_AliveAndFriendly
+                    ,SpellUnit_MyBuffExpired
+                }
+            ) then
+                --print("Aura: "..tostring(aura))
 
 
             elseif seal and CastSpellUnits(
