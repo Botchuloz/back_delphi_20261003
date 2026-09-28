@@ -4,15 +4,15 @@
 -- ForeverBlessings' assignment window (one shared picker, reused per slot,
 -- real spell icons instead of text). AddOverrideSlot() is the reusable
 -- piece: give it a delphi.override.<key>, a tooltip label, and a choice
--- list, and it wires up the icon slot + picker + state update. Seal, Aura,
--- Blessing, and Debuff Seal are wired so far; Role and Healing reuse the
+-- list, and it wires up the icon slot + picker + state update. Bar order:
+-- handle, Aura, Blessing, Seal, Debuff Seal. Role and Healing reuse the
 -- same helper next. Slot size (36px) matches ForeverBlessings' mini bar
 -- (MINI = 36, "same size as an action button" per its own comment).
 --
 -- Aura and Blessing also offer an "Inherit (ForeverBlessings)" choice
 -- (value "__FB__") that reads your assignment out of the ForeverBlessings
 -- addon at cast time - see ForeverBlessings_Aura()/ForeverBlessings_Blessing()
--- in Class_Paladin.lua for the read side. FB_ICON (Spell_Holy_AuraMastery)
+-- in Class_Paladin.lua for the read side. FB_ICON (Spell_Holy_SummonChampion)
 -- marks that choice here.
 --==========================================================================
 
@@ -23,7 +23,7 @@ delphi.db.ui = delphi.db.ui or {}
 local FLAT = "Interface\\Buttons\\WHITE8x8"
 local AUTO_ICON = 136243 -- Trade_Engineering, used for "Auto" (not a real spell)
 local DISABLED_ICON = "Interface\\RaidFrame\\ReadyCheck-NotReady" -- red X, used for "Disabled"
-local FB_ICON = 135872 -- Spell_Holy_AuraMastery, used for "Inherit (ForeverBlessings)"
+local FB_ICON = 135979 -- Spell_Holy_SummonChampion, used for "Inherit (ForeverBlessings)"
 local FB_INHERIT = "__FB__"
 
 local C = {
@@ -277,9 +277,7 @@ local function CreateMini()
     handle.label:SetPoint("CENTER")
     handle.label:SetText("Delphi")
 
-    local seal = AddOverrideSlot(mini, handle, "seal", "Seal", SEAL_CHOICES)
-
-    local aura = AddOverrideSlot(mini, seal, "aura", "Aura", {
+    local aura = AddOverrideSlot(mini, handle, "aura", "Aura", {
         {label = "Auto",                    value = 0,     icon = AUTO_ICON},
         {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
         {label = "Devotion Aura",           value = "Devotion Aura",           icon = GetSpellIcon("Devotion Aura")},
@@ -303,7 +301,9 @@ local function CreateMini()
         {label = "Disabled",              value = false, icon = DISABLED_ICON},
     })
 
-    local debuffseal = AddOverrideSlot(mini, blessing, "debuffseal", "Debuff Seal (Judgement twist)", DEBUFF_SEAL_CHOICES)
+    local seal = AddOverrideSlot(mini, blessing, "seal", "Seal", SEAL_CHOICES)
+
+    local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Debuff Seal (Judgement twist)", DEBUFF_SEAL_CHOICES)
 
     mini:Show()
 end
