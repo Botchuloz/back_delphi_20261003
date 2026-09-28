@@ -356,7 +356,9 @@ function _paladin.CoreLogic()
     elseif delphi.profession.findminerals and CastSpellUnits(
         delphi.profession.findminerals
         ,_unitids.player
-        ,not combat and not SpellUnit_ShouldSkipTrackingCast(delphi.profession.findminerals, "player")
+        ,RemainingCooldown(delphi.profession.findminerals) < 0.5
+            and not combat
+            and not SpellUnit_ShouldSkipTrackingCast(delphi.profession.findminerals, "player")
         ,{
             SpellUnit_AliveAndFriendly
         }
