@@ -128,18 +128,16 @@ end
 --==========================================================================
 -- KNOWN ISSUE (unresolved): SpellUnit_AnyTrackingActive(), which used
 -- C_Minimap.GetNumTrackingTypes()/GetTrackingInfo() to detect whether ANY
--- minimap tracking type was active (so Find Minerals wouldn't clobber a
--- manually-set tracking choice like Sense Undead), was found in testing to
--- return true unconditionally on WoWF - some entry in that list reports
--- "active" even when it isn't a real player-selected tracking type. This
--- permanently blocked Find Minerals from ever casting. Root cause not yet
+-- minimap tracking type was active, was found in testing to return true
+-- unconditionally on WoWF - some entry in that list reports "active" even
+-- when it isn't a real player-selected tracking type. Root cause not yet
 -- identified; needs an in-game dump of
 -- "for i=1,C_Minimap.GetNumTrackingTypes() do local info=C_Minimap.GetTrackingInfo(i) print(i,info.name,info.active) end"
--- to find the false positive before this can be trusted again. Until then,
--- Find Minerals below is gated on its own buff instead (see
--- SpellUnit_ProfessionTrackingActive), which fixes the spam but no longer
--- protects a manually-set, non-Find-Minerals tracking choice from being
--- overridden.
+-- to find the false positive before this can be trusted again. Left in
+-- place for reference/future fix, but no longer called - see
+-- SpellUnit_ShouldSkipTrackingCast() below, which uses direct buff checks
+-- (confirmed via Wowhead that both Find Minerals and Sense Undead grant a
+-- real, permanent-duration buff matching the spell name) instead.
 --==========================================================================
 function SpellUnit_AnyTrackingActive()
     local numTypes = 0
@@ -167,18 +165,38 @@ function SpellUnit_AnyTrackingActive()
 end
 
 
--- Presence-only check for a tracking spell's own buff (confirmed via Wowhead
--- that Find Minerals applies a buff literally named "Find Minerals", with
--- duration "n/a"/permanent). Deliberately does not use CheckAura()/
--- RemainingBuff(), since those do expiration-time math that doesn't handle
--- permanent (duration=0) buffs the way this needs.
-function SpellUnit_ProfessionTrackingActive(spell, unit)
+-- Known minimap-tracking buffs that compete for WoW's single-tracking-slot
+-- ("Only one form of tracking can be active at a time"). Populated lazily
+-- since delphi.profession.* isn't known until after
+-- DetectRacialAndProfessionAbilities() has run.
+local function KnownTrackingBuffs()
+    local buffs = { [_spell.sense_undead] = true }
+    if delphi.profession.findminerals then
+        buffs[delphi.profession.findminerals] = true
+    end
+    if delphi.profession.findherbs then
+        buffs[delphi.profession.findherbs] = true
+    end
+    return buffs
+end
+
+
+-- Returns true if casting `spell` on `unit` should be skipped: either the
+-- spell's own buff is already active (avoids respamming a permanent-duration
+-- tracking buff every tick), or a different known tracking buff is already
+-- active and should not be clobbered (e.g. don't override a manually-cast
+-- Sense Undead with an auto-cast Find Minerals).
+function SpellUnit_ShouldSkipTrackingCast(spell, unit)
+    local known = KnownTrackingBuffs()
     for i = 1, 40 do
         local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
         if not aura then
             break
         end
         if aura.name == spell then
+            return true
+        end
+        if known[aura.name] then
             return true
         end
     end
@@ -297,7 +315,7 @@ function _paladin.CoreLogic()
     elseif delphi.profession.findminerals and CastSpellUnits(
         delphi.profession.findminerals
         ,_unitids.player
-        ,not combat and not SpellUnit_ProfessionTrackingActive(delphi.profession.findminerals, "player")
+        ,not combat and not SpellUnit_ShouldSkipTrackingCast(delphi.profession.findminerals, "player")
         ,{
             SpellUnit_AliveAndFriendly
         }
