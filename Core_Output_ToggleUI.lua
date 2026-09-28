@@ -13,7 +13,7 @@ delphi.db = delphi.db or {}
 delphi.db.ui = delphi.db.ui or {}
 
 local FLAT = "Interface\\Buttons\\WHITE8x8"
-local AUTO_ICON = 134400 -- INV_Misc_QuestionMark, used for "Auto" (not a real spell)
+local AUTO_ICON = 136243 -- Trade_Engineering, used for "Auto" (not a real spell)
 local DISABLED_ICON = "Interface\\RaidFrame\\ReadyCheck-NotReady" -- red X, used for "Disabled"
 
 local C = {
@@ -57,7 +57,7 @@ local function GetSpellIcon(spellName)
             return info.iconID
         end
     end
-    return AUTO_ICON
+    return 134400
 end
 
 --==========================================================================
