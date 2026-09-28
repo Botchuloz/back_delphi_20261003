@@ -136,6 +136,17 @@ function _register:PLAYER_REGEN_ENABLED(event, ...)
 end
 
 
+-- Re-run racial/profession spell detection once the player is fully loaded
+-- into the world. Global_Abilities_Racials.lua runs its detection once at
+-- file-load time (very early in the addon's load order), which can be
+-- before profession/racial spellbook data is fully cached; this ensures it
+-- gets a second, reliable pass.
+function _register:PLAYER_ENTERING_WORLD(event, ...)
+    if DetectRacialAndProfessionAbilities then
+        DetectRacialAndProfessionAbilities()
+    end
+end
+
 
 function LastErrorMessageOccurred(error_string)
     return _now - (_lasterror[error_string] or (_now-999))
