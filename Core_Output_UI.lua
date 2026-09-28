@@ -16,8 +16,8 @@ function CreateNewStatusIcon(icon_name,x,y,delegate)
     _icon.colour:SetColorTexture (0, 0, 0)
     _icon.colour:SetAllPoints (_icon.pythia)
 
-    _icon.pythia.texture = _icon.colour 
-    _icon.pythia:SetPoint ("CENTER", x, y) 
+    _icon.pythia.texture = _icon.colour
+    _icon.pythia:SetPoint ("CENTER", x, y)
     _icon.pythia:Show ()
     --[[dragonflight day zero]]
     --_icon.label = _icon.pythia:CreateFontString("test","TOOLTIP","GameFontNormal")
@@ -27,14 +27,12 @@ function CreateNewStatusIcon(icon_name,x,y,delegate)
     _icon.label:SetText(icon_name)
     --_icon.label:SetTextHeight(8)
 
-    _icon.delegate = delegate   
-
+    _icon.delegate = delegate
     _icon.display_text = icon_name
 
     _icons[icon_name] = _icon
     return _icon
 end
-
 
 function CreateNewLabel(icon_name,x,y,delegate)
     local _icon = {}
@@ -46,7 +44,7 @@ function CreateNewLabel(icon_name,x,y,delegate)
     --[[/dragonflight day zero]]
     _icon.pythia:SetWidth (1)
     _icon.pythia:SetHeight (1)
-    _icon.pythia:SetPoint ("CENTER", x, y) 
+    _icon.pythia:SetPoint ("CENTER", x, y)
     _icon.pythia:Show ()
     --label
     --[[dragonflight day zero]]
@@ -56,7 +54,7 @@ function CreateNewLabel(icon_name,x,y,delegate)
     _icon.label:SetPoint("CENTER",0,-25)
     _icon.label:SetText(icon_name)
     --meta
-    _icon.delegate = delegate   
+    _icon.delegate = delegate
     _icon.display_text = icon_name
     --push back
     _icons[icon_name] = _icon
@@ -64,7 +62,7 @@ function CreateNewLabel(icon_name,x,y,delegate)
 end
 
 -- this is where you change the colour, R G B
--- v.colour:SetColorTexture (0, colour, 0) 
+-- v.colour:SetColorTexture (0, colour, 0)
 -- 0 = black, 1 = 100% aka 255
 function UpdateStatusIcons()
     for k,v in pairs(_icons) do
@@ -83,7 +81,6 @@ function CreateIconAndButton(button_name,x,y,initial_label,max_state,optional_de
     CreateButton(button_name,button_name,"/run local current_state = delphi.ui.icon['"..button_name.."'].value or 0.0; local max_float = "..max_float.."; if current_state >= max_float then  delphi.ui.icon['"..button_name.."'].value = 0; print('reset state') else delphi.ui.icon['"..button_name.."'].value = current_state + 1 end;")
     _icons[button_name].display_text = initial_label
 end
-
 
 function TriStateCheck(setting,label0,label1,label2)
     local setting_state = delphi.ui.icon[setting].value or 0
@@ -109,7 +106,7 @@ function TriStateCheck(setting,label0,label1,label2)
     else
         delphi.ui.icon[setting].display_text = "???"
         print(setting_state)
-    end  
+    end
     return state_0, state_1, state_2
 end
 
@@ -129,7 +126,7 @@ function BiStateCheck(setting,label0,label1)
     else
         delphi.ui.icon[setting].display_text = "???"
         print(setting_state)
-    end  
+    end
     return state_0, state_1
 end
 
@@ -150,21 +147,24 @@ CreateNewStatusIcon("NUMPAD7",170+300,-250,function()
     return delphi.runtime.profile == _dd and not GodlyIsOff() and 1 or 0, _dd
 end)
 CreateButton(_dd,"NUMPAD7",
-    "/run delphi.runtime.profile=_dd;delphi.runtime.changedprofile=GetTime();if delphi.override.role=='dps_aoe' then delphi.override.role='dps_dd' end\n/petassist")
+    "/run delphi.runtime.profile=_dd;delphi.runtime.changedprofile=GetTime();delphi.override.role='dps'\n/petassist")
+
 CreateNewStatusIcon("NUMPAD8",210+300,-250,function()
     return delphi.runtime.profile == _aoe and not GodlyIsOff() and 1 or 0, _aoe
 end)
 CreateButton(_aoe,"NUMPAD8",
-    "/run delphi.runtime.profile=_aoe;delphi.runtime.changedprofile=GetTime();if delphi.override.role=='dps_dd' then delphi.override.role='dps_aoe' end")
+    "/run delphi.runtime.profile=_aoe;delphi.runtime.changedprofile=GetTime();delphi.override.role='dps'")
+
 CreateNewStatusIcon("NUMPAD9",250+300,-250,function()
     return GodlyIsOff() and 1 or 0, "OFF"
 end)
 CreateButton(_off,"NUMPAD9",
-    "/run delphi.override.role='off';delphi.override.healing=false\n/petpassive\n/stopattack\n/stopcasting\n/run print('OFF')")
-delphi.runtime.profile = _dd
- delphi.runtime.changedprofile = 0
+    "/run delphi.runtime.profile=_off;delphi.runtime.changedprofile=GetTime()\n/petpassive\n/stopattack\n/stopcasting\n/run print('OFF')")
 
-    --CreateIconAndButton("NUMPAD1",170+300,-150,"burn",3)
+delphi.runtime.profile = _off
+delphi.runtime.changedprofile = 0
+
+--CreateIconAndButton("NUMPAD1",170+300,-150,"burn",3)
 --[[/dragonflight zero day]]
 
 delphi.ui.icon = _icons

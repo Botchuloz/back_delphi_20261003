@@ -1,31 +1,25 @@
 --==========================================================================
 -- Core_Output_ToggleUI.lua
--- Draggable mini bar + click-to-open picker flyout, styled after
--- ForeverBlessings' assignment window (one shared picker, reused per slot,
--- real spell icons instead of text). AddOverrideSlot() is the reusable
--- piece: give it a delphi.override.<key>, a tooltip label, and a choice
--- list, and it wires up the icon slot + picker + state update. Bar order:
--- handle, Context, Mode, Healing, Role, Aura, Blessing, Seal, Debuff Seal. Slot size (36px) matches ForeverBlessings' mini bar
--- (MINI = 36, "same size as an action button" per its own comment).
---
--- Aura and Blessing also offer an "Inherit (ForeverBlessings)" choice
--- (value "__FB__") that reads your assignment out of the ForeverBlessings
--- addon at cast time - see ForeverBlessings_Aura()/ForeverBlessings_Blessing()
--- in Class_Paladin.lua for the read side. FB_ICON (Spell_Holy_SummonChampion)
--- marks that choice here.
+-- Draggable mini bar with a shared icon picker. Bar order:
+-- handle, Mode, Context, Healing, Role, Aura, Blessing, Seal, Debuff Seal.
+-- Mode is DD / AoE / Off. Off is the master stop; switching modes does not
+-- change Healing or Role. Aura and Blessing can inherit ForeverBlessings.
 --==========================================================================
 
 delphi.override = delphi.override or {}
 if delphi.override.context == nil then delphi.override.context = "pve" end
-if delphi.override.role == nil then delphi.override.role = "dps_dd" end
+if delphi.override.role == "dps_dd" or delphi.override.role == "dps_aoe" then
+    delphi.override.role = "dps"
+end
+if delphi.override.role == nil then delphi.override.role = "dps" end
 if delphi.override.healing == nil then delphi.override.healing = true end
 delphi.db = delphi.db or {}
 delphi.db.ui = delphi.db.ui or {}
 
 local FLAT = "Interface\\Buttons\\WHITE8x8"
-local AUTO_ICON = 136243 -- Trade_Engineering, used for "Auto" (not a real spell)
-local DISABLED_ICON = "Interface\\RaidFrame\\ReadyCheck-NotReady" -- red X, used for "Disabled"
-local FB_ICON = 135979 -- Spell_Holy_SummonChampion, used for "Inherit (ForeverBlessings)"
+local AUTO_ICON = 136243 -- Trade_Engineering
+local DISABLED_ICON = "Interface\\RaidFrame\\ReadyCheck-NotReady"
+local FB_ICON = 135979 -- Spell_Holy_SummonChampion
 local FB_INHERIT = "__FB__"
 
 local C = {
@@ -59,9 +53,6 @@ local function RestorePos(frame, key, default)
     end
 end
 
--- Looks up a spell's icon by name (same C_Spell.GetSpellInfo API already
--- used by SpellKnown() in Class_Paladin.lua). Falls back to a question-mark
--- icon if the spell can't be resolved, rather than erroring.
 local function GetSpellIcon(spellName)
     if C_Spell and C_Spell.GetSpellInfo then
         local ok, info = pcall(C_Spell.GetSpellInfo, spellName)
@@ -72,13 +63,10 @@ local function GetSpellIcon(spellName)
     return 134400
 end
 
---==========================================================================
--- Picker flyout - shared across every slot. Shows one icon button per
--- choice. Selecting one calls back into on_select(value, icon), then closes.
---==========================================================================
+-- One picker is reused for all slots.
 local picker
-local CELL, GAP = 36, 6 -- CELL matches ForeverBlessings' mini bar (MINI = 36)
-local HANDLEW = 30 -- ForeverBlessings' handle is narrower than its slots too
+local CELL, GAP = 36, 6
+local HANDLEW = 30
 
 local function HidePicker()
     if picker then picker:Hide() end
@@ -96,9 +84,7 @@ local function CreatePicker()
             self.idle = 0
         else
             self.idle = (self.idle or 0) + elapsed
-            if self.idle > 1.2 then
-                self:Hide()
-            end
+            if self.idle > 1.2 then self:Hide() end
         end
     end)
     table.insert(UISpecialFrames, "DelphiTogglePicker")
@@ -135,8 +121,6 @@ local function PickerButton(i)
     return b
 end
 
--- choices = { {label="Auto", value=0, icon=AUTO_ICON}, {label="Seal of Command", value="Seal of Command", icon=1234}, ... }
--- on_select receives (value, icon) so the calling slot can update its own displayed icon.
 local function ShowPicker(cell, choices, on_select)
     if type(choices) == "function" then choices = choices() end
     if not picker then CreatePicker() end
@@ -146,7 +130,6 @@ local function ShowPicker(cell, choices, on_select)
     end
     picker.anchor = cell
     picker.on_select = on_select
-
     for i, choice in ipairs(choices) do
         local b = PickerButton(i)
         b.value = choice.value
@@ -160,7 +143,6 @@ local function ShowPicker(cell, choices, on_select)
     for i = #choices + 1, #picker.buttons do
         picker.buttons[i]:Hide()
     end
-
     picker:SetSize(12 + #choices * (CELL + GAP) - GAP, CELL + 12)
     picker:ClearAllPoints()
     picker:SetPoint("TOPLEFT", cell, "BOTTOMLEFT", -6, -4)
@@ -168,9 +150,6 @@ local function ShowPicker(cell, choices, on_select)
     picker:Show()
 end
 
---==========================================================================
--- Mini bar
---==========================================================================
 local mini
 
 local function CreateSlot(parent, initialIcon)
@@ -185,10 +164,6 @@ local function CreateSlot(parent, initialIcon)
     return s
 end
 
--- Reusable slot wiring: key is the delphi.override.<key> this slot edits,
--- tooltipLabel is shown on hover, choices is the picker's option list
--- (see ShowPicker above for the shape). Returns the created slot frame so
--- the next slot can anchor off it.
 local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices, changed)
     local initialIcon = AUTO_ICON
     for _, c in ipairs(type(choices) == "function" and choices() or choices) do
@@ -197,10 +172,8 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices, chang
             break
         end
     end
-
     local slot = CreateSlot(parent, initialIcon)
     slot:SetPoint("LEFT", anchor, "RIGHT", GAP, 0)
-
     slot:SetScript("OnClick", function(self)
         ShowPicker(self, choices, function(value, icon)
             delphi.override[key] = value
@@ -237,10 +210,8 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices, chang
     return slot
 end
 
--- Full seal list - used by the Seal (buff-maintenance) slot, where any
--- seal is a valid choice regardless of whether it leaves a debuff.
 local SEAL_CHOICES = {
-    {label = "Auto",                 value = 0,     icon = AUTO_ICON},
+    {label = "Auto",                  value = 0, icon = AUTO_ICON},
     {label = "Seal of Righteousness", value = "Seal of Righteousness", icon = GetSpellIcon("Seal of Righteousness")},
     {label = "Seal of Command",       value = "Seal of Command",       icon = GetSpellIcon("Seal of Command")},
     {label = "Seal of the Crusader",  value = "Seal of the Crusader",  icon = GetSpellIcon("Seal of the Crusader")},
@@ -251,19 +222,14 @@ local SEAL_CHOICES = {
     {label = "Disabled",              value = false, icon = DISABLED_ICON},
 }
 
--- Debuff-only seal list - used by the Debuff Seal (Judgement twist) slot.
--- Seal of Righteousness and Seal of Command are deliberately excluded:
--- neither leaves a debuff when judged (Righteousness is a flat melee
--- proc, Command is a bonus-damage proc) - they're DPS seals used as part
--- of the normal Judgement rotation, not seals worth twisting for a debuff.
 local DEBUFF_SEAL_CHOICES = {
-    {label = "Auto",                 value = 0,     icon = AUTO_ICON},
-    {label = "Seal of the Crusader",  value = "Seal of the Crusader",  icon = GetSpellIcon("Seal of the Crusader")},
-    {label = "Seal of Fury",          value = "Seal of Fury",          icon = GetSpellIcon("Seal of Fury")},
-    {label = "Seal of Justice",       value = "Seal of Justice",       icon = GetSpellIcon("Seal of Justice")},
-    {label = "Seal of Light",         value = "Seal of Light",         icon = GetSpellIcon("Seal of Light")},
-    {label = "Seal of Wisdom",        value = "Seal of Wisdom",        icon = GetSpellIcon("Seal of Wisdom")},
-    {label = "Disabled",              value = false, icon = DISABLED_ICON},
+    {label = "Auto",                 value = 0, icon = AUTO_ICON},
+    {label = "Seal of the Crusader", value = "Seal of the Crusader", icon = GetSpellIcon("Seal of the Crusader")},
+    {label = "Seal of Fury",         value = "Seal of Fury",         icon = GetSpellIcon("Seal of Fury")},
+    {label = "Seal of Justice",      value = "Seal of Justice",      icon = GetSpellIcon("Seal of Justice")},
+    {label = "Seal of Light",        value = "Seal of Light",        icon = GetSpellIcon("Seal of Light")},
+    {label = "Seal of Wisdom",       value = "Seal of Wisdom",       icon = GetSpellIcon("Seal of Wisdom")},
+    {label = "Disabled",             value = false, icon = DISABLED_ICON},
 }
 
 local CONTEXT_CHOICES = {
@@ -277,25 +243,25 @@ local HEALING_CHOICES = {
 local ROLE_PVE = {
     {label="Main Tank", value="main_tank", icon=135880},
     {label="Off Tank", value="off_tank", icon=134952},
-    {label="DPS DD", value="dps_dd", icon=236304},
-    {label="DPS AoE", value="dps_aoe", icon=1387356},
+    {label="DPS", value="dps", icon=236304},
     {label="Role Off", value="off", icon=DISABLED_ICON},
 }
-local ROLE_PVP = {ROLE_PVE[1], ROLE_PVE[3], ROLE_PVE[4], ROLE_PVE[5]}
+local ROLE_PVP = {ROLE_PVE[1], ROLE_PVE[3], ROLE_PVE[4]}
 local MODE_CHOICES = {
     {label="DD", value="dd", icon=589068},
     {label="AoE", value="aoe", icon=236303},
+    {label="Off", value="off", icon=DISABLED_ICON},
 }
+
 local function RoleChoices()
     return delphi.override.context == "pvp" and ROLE_PVP or ROLE_PVE
 end
+
 local function SelectMode(value)
     delphi.runtime.profile = value
     delphi.runtime.changedprofile = GetTime()
-    if delphi.override.role == "dps_dd" or delphi.override.role == "dps_aoe" then
-        delphi.override.role = value == "aoe" and "dps_aoe" or "dps_dd"
-    end
 end
+
 local function AddModeSlot(parent, anchor)
     local slot = CreateSlot(parent, MODE_CHOICES[1].icon)
     slot:SetPoint("LEFT", anchor, "RIGHT", GAP, 0)
@@ -308,13 +274,19 @@ local function AddModeSlot(parent, anchor)
     slot:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         GameTooltip:AddLine("Mode: " .. tostring(delphi.runtime.profile))
-        GameTooltip:AddLine("NUMPAD7 DD; NUMPAD8 AoE; NUMPAD9 disables role and healing")
+        GameTooltip:AddLine("NUMPAD7 DD; NUMPAD8 AoE; NUMPAD9 Off")
         GameTooltip:Show()
     end)
     slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
     slot.Sync = function(self)
-        self.icon:SetTexture(delphi.runtime.profile == "aoe"
-            and MODE_CHOICES[2].icon or MODE_CHOICES[1].icon)
+        local current = delphi.runtime.profile
+        local icon = MODE_CHOICES[1].icon
+        if current == "aoe" then
+            icon = MODE_CHOICES[2].icon
+        elseif current == "off" then
+            icon = MODE_CHOICES[3].icon
+        end
+        self.icon:SetTexture(icon)
     end
     return slot
 end
@@ -343,45 +315,38 @@ local function CreateMini()
     handle.label:SetPoint("CENTER")
     handle.label:SetText("Delphi")
 
-    local context = AddOverrideSlot(mini, handle, "context", "Context", CONTEXT_CHOICES,
+    local mode = AddModeSlot(mini, handle)
+    local context = AddOverrideSlot(mini, mode, "context", "Context", CONTEXT_CHOICES,
         function(value)
             if value == "pvp" and delphi.override.role == "off_tank" then
                 delphi.override.role = "off"
             end
         end)
-    local mode = AddModeSlot(mini, context)
-    local healing = AddOverrideSlot(mini, mode, "healing", "Healing", HEALING_CHOICES)
-    local role = AddOverrideSlot(mini, healing, "role", "Role", RoleChoices,
-        function(value)
-            if value == "dps_dd" then SelectMode("dd")
-            elseif value == "dps_aoe" then SelectMode("aoe") end
-        end)
+    local healing = AddOverrideSlot(mini, context, "healing", "Healing", HEALING_CHOICES)
+    local role = AddOverrideSlot(mini, healing, "role", "Role", RoleChoices)
     local aura = AddOverrideSlot(mini, role, "aura", "Aura", {
-        {label = "Auto",                    value = 0,     icon = AUTO_ICON},
+        {label = "Auto", value = 0, icon = AUTO_ICON},
         {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
-        {label = "Devotion Aura",           value = "Devotion Aura",           icon = GetSpellIcon("Devotion Aura")},
-        {label = "Retribution Aura",        value = "Retribution Aura",        icon = GetSpellIcon("Retribution Aura")},
-        {label = "Concentration Aura",      value = "Concentration Aura",      icon = GetSpellIcon("Concentration Aura")},
-        {label = "Shadow Resistance Aura",  value = "Shadow Resistance Aura",  icon = GetSpellIcon("Shadow Resistance Aura")},
-        {label = "Frost Resistance Aura",   value = "Frost Resistance Aura",   icon = GetSpellIcon("Frost Resistance Aura")},
-        {label = "Fire Resistance Aura",    value = "Fire Resistance Aura",    icon = GetSpellIcon("Fire Resistance Aura")},
-        {label = "Disabled",                value = false, icon = DISABLED_ICON},
+        {label = "Devotion Aura", value = "Devotion Aura", icon = GetSpellIcon("Devotion Aura")},
+        {label = "Retribution Aura", value = "Retribution Aura", icon = GetSpellIcon("Retribution Aura")},
+        {label = "Concentration Aura", value = "Concentration Aura", icon = GetSpellIcon("Concentration Aura")},
+        {label = "Shadow Resistance Aura", value = "Shadow Resistance Aura", icon = GetSpellIcon("Shadow Resistance Aura")},
+        {label = "Frost Resistance Aura", value = "Frost Resistance Aura", icon = GetSpellIcon("Frost Resistance Aura")},
+        {label = "Fire Resistance Aura", value = "Fire Resistance Aura", icon = GetSpellIcon("Fire Resistance Aura")},
+        {label = "Disabled", value = false, icon = DISABLED_ICON},
     })
-
     local blessing = AddOverrideSlot(mini, aura, "blessing", "Blessing", {
-        {label = "Auto",                  value = 0,     icon = AUTO_ICON},
+        {label = "Auto", value = 0, icon = AUTO_ICON},
         {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
-        {label = "Blessing of Might",     value = "Blessing of Might",     icon = GetSpellIcon("Blessing of Might")},
-        {label = "Blessing of Kings",     value = "Blessing of Kings",     icon = GetSpellIcon("Blessing of Kings")},
-        {label = "Blessing of Wisdom",    value = "Blessing of Wisdom",    icon = GetSpellIcon("Blessing of Wisdom")},
+        {label = "Blessing of Might", value = "Blessing of Might", icon = GetSpellIcon("Blessing of Might")},
+        {label = "Blessing of Kings", value = "Blessing of Kings", icon = GetSpellIcon("Blessing of Kings")},
+        {label = "Blessing of Wisdom", value = "Blessing of Wisdom", icon = GetSpellIcon("Blessing of Wisdom")},
         {label = "Blessing of Salvation", value = "Blessing of Salvation", icon = GetSpellIcon("Blessing of Salvation")},
         {label = "Blessing of Sacrifice", value = "Blessing of Sacrifice", icon = GetSpellIcon("Blessing of Sacrifice")},
-        {label = "Blessing of Light",     value = "Blessing of Light",     icon = GetSpellIcon("Blessing of Light")},
-        {label = "Disabled",              value = false, icon = DISABLED_ICON},
+        {label = "Blessing of Light", value = "Blessing of Light", icon = GetSpellIcon("Blessing of Light")},
+        {label = "Disabled", value = false, icon = DISABLED_ICON},
     })
-
     local seal = AddOverrideSlot(mini, blessing, "seal", "Seal", SEAL_CHOICES)
-
     local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Judgement seal (effect logic deferred)", DEBUFF_SEAL_CHOICES)
 
     mini.summary = mini:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -389,15 +354,11 @@ local function CreateMini()
     mini.summary:SetJustifyH("LEFT")
     mini:SetScript("OnUpdate", function(self)
         local current = delphi.runtime.profile
-        if (delphi.override.role == "dps_dd" or delphi.override.role == "dps_aoe")
-            and (current == "dd" or current == "aoe") then
-            delphi.override.role = current == "aoe" and "dps_aoe" or "dps_dd"
-        end
         if delphi.override.context == "pvp" and delphi.override.role == "off_tank" then
             delphi.override.role = "off"
         end
-        context:Sync()
         mode:Sync()
+        context:Sync()
         healing:Sync()
         role:Sync()
         aura:Sync()
