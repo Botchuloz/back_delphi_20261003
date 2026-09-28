@@ -14,12 +14,22 @@ local _global  = delphi.pythia.global
 --   /run delphi.override.seal = 0                      -- Auto (role/branch default)
 --   /run delphi.override.seal = "Seal of Command"       -- Manual (cast this instead)
 --   /run delphi.override.seal = false                   -- Disabled (cast nothing here)
--- Same pattern applies to delphi.override.aura and delphi.override.blessing.
+-- Same pattern applies to delphi.override.aura, delphi.override.blessing,
+-- and delphi.override.debuffseal.
+--
+-- delphi.override.debuffseal is the seal Judgement twists to/consumes for
+-- its debuff (kept separate from `seal`, the maintenance/buff seal). The
+-- gate below (RemainingCooldown on both Judgement and the seal itself,
+-- plus the buff still being up, plus SpellUnit_Debuff_ExpiringNextGCDOrExpired
+-- from SpellUnit_Delegates_Bool.lua) is the user's own design, not verified
+-- against WoWF's actual Judgement/seal mechanics yet - test in-game before
+-- trusting it.
 --==========================================================================
 delphi.override = delphi.override or {}
 delphi.override.seal = delphi.override.seal or 0
 delphi.override.aura = delphi.override.aura or 0
 delphi.override.blessing = delphi.override.blessing or 0
+delphi.override.debuffseal = delphi.override.debuffseal or 0
 
 
 --==========================================================================
@@ -391,6 +401,10 @@ function _paladin.CoreLogic()
             local aura = ResolveOverride(delphi.override.aura, _spell.retribution_aura)
             local seal = ResolveOverride(delphi.override.seal, _spell.seal_of_the_crusader)
             local blessing = ResolveOverride(delphi.override.blessing, _spell.blessing_of_might)
+            -- Spell selection for the seal Judgement should twist to/consume
+            -- for its debuff. Kept distinct from `seal` (the maintenance
+            -- buff seal) above.
+            local debuffseal = ResolveOverride(delphi.override.debuffseal, _spell.seal_of_the_crusader)
 
 
             if 1 == 0 then
@@ -430,6 +444,30 @@ function _paladin.CoreLogic()
                 }
             ) then
                 --print("Blessing: "..tostring(blessing))
+
+
+            -- Twist-gated Judgement: your design, not yet verified in-game.
+            -- Fires only when Judgement is off cooldown, the debuffseal is
+            -- also off cooldown, its buff is still active on you, and the
+            -- target's debuff from it is about to expire or already has
+            -- (SpellUnit_Debuff_ExpiringNextGCDOrExpired, from
+            -- SpellUnit_Delegates_Bool.lua). Falls through to the plain
+            -- Judgement cast below if debuffseal is Disabled or the gate
+            -- doesn't line up this tick.
+            elseif debuffseal and CastSpellUnits(
+                _spell.judgement
+                ,_unitids.standard_hostile
+                ,RemainingCooldown(_spell.judgement) < 0.5
+                    and RemainingCooldown(debuffseal) < 0.5
+                    and _unit.player.buff[debuffseal].remaining > 0
+                ,{
+                    SpellUnit_UnitAliveAndHostile
+                    ,SpellUnit_RangeCheck
+                    ,SpellUnit_ValidHarm
+                    ,SpellUnit_Debuff_ExpiringNextGCDOrExpired
+                }
+            ) then
+                --print("Judgement (twist-gated): "..tostring(debuffseal))
 
 
             elseif CastSpellUnits(
