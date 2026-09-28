@@ -11,6 +11,7 @@ Table.lua
 Global_Tables.lua
 Global_Strings.lua
 Global_Blacklist.lua
+Global_Abilities_Racials.lua
 
 Core_Input_Keybinds.lua
 
