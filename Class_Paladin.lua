@@ -126,13 +126,20 @@ end
 
 
 --==========================================================================
--- Tracking helper. Shared exclusivity check used to avoid Find Minerals
--- (or any auto-cast tracking spell) overriding a tracking type the player
--- already turned on manually, e.g. Sense Undead. WoW only allows one
--- tracking effect active at a time, so this checks all of them generically.
--- Prefers the modern C_Minimap namespace, falls back to the old globals
--- (this WoWF build doesn't expose GetNumTrackingTypes/GetTrackingInfo as
--- plain globals, only C_Minimap.*).
+-- KNOWN ISSUE (unresolved): SpellUnit_AnyTrackingActive(), which used
+-- C_Minimap.GetNumTrackingTypes()/GetTrackingInfo() to detect whether ANY
+-- minimap tracking type was active (so Find Minerals wouldn't clobber a
+-- manually-set tracking choice like Sense Undead), was found in testing to
+-- return true unconditionally on WoWF - some entry in that list reports
+-- "active" even when it isn't a real player-selected tracking type. This
+-- permanently blocked Find Minerals from ever casting. Root cause not yet
+-- identified; needs an in-game dump of
+-- "for i=1,C_Minimap.GetNumTrackingTypes() do local info=C_Minimap.GetTrackingInfo(i) print(i,info.name,info.active) end"
+-- to find the false positive before this can be trusted again. Until then,
+-- Find Minerals below is gated on its own buff instead (see
+-- SpellUnit_ProfessionTrackingActive), which fixes the spam but no longer
+-- protects a manually-set, non-Find-Minerals tracking choice from being
+-- overridden.
 --==========================================================================
 function SpellUnit_AnyTrackingActive()
     local numTypes = 0
@@ -153,6 +160,25 @@ function SpellUnit_AnyTrackingActive()
             active = isActive
         end
         if active then
+            return true
+        end
+    end
+    return false
+end
+
+
+-- Presence-only check for a tracking spell's own buff (confirmed via Wowhead
+-- that Find Minerals applies a buff literally named "Find Minerals", with
+-- duration "n/a"/permanent). Deliberately does not use CheckAura()/
+-- RemainingBuff(), since those do expiration-time math that doesn't handle
+-- permanent (duration=0) buffs the way this needs.
+function SpellUnit_ProfessionTrackingActive(spell, unit)
+    for i = 1, 40 do
+        local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
+        if not aura then
+            break
+        end
+        if aura.name == spell then
             return true
         end
     end
@@ -271,7 +297,7 @@ function _paladin.CoreLogic()
     elseif delphi.profession.findminerals and CastSpellUnits(
         delphi.profession.findminerals
         ,_unitids.player
-        ,not combat and not SpellUnit_AnyTrackingActive()
+        ,not combat and not SpellUnit_ProfessionTrackingActive(delphi.profession.findminerals, "player")
         ,{
             SpellUnit_AliveAndFriendly
         }
