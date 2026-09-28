@@ -19,6 +19,7 @@ Core_Input_Keybinds.lua
 Core_Output_Pythia.lua
 Core_Output_UI.lua
 Core_Output_CLI.lua
+Core_Output_ToggleUI.lua
 
 Unit_Logic.lua
 Unit_Abilities.lua
