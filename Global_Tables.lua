@@ -1,5 +1,13 @@
 delphi = {}
 
+-- Persistent settings/state saved across sessions and /reload. Requires
+-- "## SavedVariables: DelphiDB" in Delphi.toc. The client restores DelphiDB
+-- from disk (or leaves it nil on first run) BEFORE any of this addon's Lua
+-- files execute, so this can be initialized directly here with no event
+-- handler needed.
+DelphiDB = DelphiDB or {}
+delphi.db = DelphiDB
+
 _now  = 0
 _null = ""
 _dd   = "dd"
@@ -18,7 +26,7 @@ delphi.error  = {}
 --delphi.buttons= {}
 
 delphi.runtime  = {} -- godlies current statuses (eg, profile == aoe, cleave == off)
-delphi.pythia   = {} -- the pixels we use (currently just "instant" and "global")
+delphi.pythia   = {} -- the pythias we use (currently just "instant" and "global")
 
 delphi.keyboard = {}
 delphi.keyboard.key_ascii = {} -- ascii value for that key
