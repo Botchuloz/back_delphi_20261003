@@ -125,6 +125,23 @@ local function GetPaladinSpec()
 end
 
 
+--==========================================================================
+-- Tracking helper. Shared exclusivity check used to avoid Find Minerals
+-- (or any auto-cast tracking spell) overriding a tracking type the player
+-- already turned on manually, e.g. Sense Undead. WoW only allows one
+-- tracking effect active at a time, so this checks all of them generically.
+--==========================================================================
+function SpellUnit_AnyTrackingActive()
+    for i = 1, GetNumTrackingTypes() do
+        local _, _, active = GetTrackingInfo(i)
+        if active then
+            return true
+        end
+    end
+    return false
+end
+
+
 local bind_once = 0
 function _paladin.SetBinds()
     if bind_once > 0 then
@@ -188,6 +205,13 @@ function _paladin.SetBinds()
     if delphi.racial.perception then
         BindSpellToUnits(delphi.racial.perception, _unitids.player)
     end
+
+
+    --Professions - player only. Sourced from Global_Abilities_Racials.lua,
+    --nil if the profession isn't learned, so this is a no-op if not applicable.
+    if delphi.profession.findminerals then
+        BindSpellToUnits(delphi.profession.findminerals, _unitids.player)
+    end
 end
 
 
@@ -203,6 +227,7 @@ end
 --=================================================================
 function _paladin.CoreLogic()
     local heal_on,dps_on = BiStateCheck("NUMPAD3","healer","dpser")
+    local combat = CombatStatus()
 
 
     if 1 == 0 then
@@ -223,6 +248,17 @@ function _paladin.CoreLogic()
         }
     ) then
         --print("Perception")
+
+
+    elseif delphi.profession.findminerals and CastSpellUnits(
+        delphi.profession.findminerals
+        ,_unitids.player
+        ,not combat and not SpellUnit_AnyTrackingActive()
+        ,{
+            SpellUnit_AliveAndFriendly
+        }
+    ) then
+        --print("Find Minerals")
 
 
     elseif GodlyIsDD() then
