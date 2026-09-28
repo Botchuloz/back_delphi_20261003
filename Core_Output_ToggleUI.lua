@@ -5,7 +5,7 @@
 -- real spell icons instead of text). AddOverrideSlot() is the reusable
 -- piece: give it a delphi.override.<key>, a tooltip label, and a choice
 -- list, and it wires up the icon slot + picker + state update. Seal, Aura,
--- and Blessing are wired so far; Debuff Seal, Role, and Healing reuse the
+-- Blessing, and Debuff Seal are wired so far; Role and Healing reuse the
 -- same helper next. Slot size (36px) matches ForeverBlessings' mini bar
 -- (MINI = 36, "same size as an action button" per its own comment).
 --==========================================================================
@@ -214,9 +214,21 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices)
     return slot
 end
 
+local SEAL_CHOICES = {
+    {label = "Auto",                 value = 0,     icon = AUTO_ICON},
+    {label = "Seal of Righteousness", value = "Seal of Righteousness", icon = GetSpellIcon("Seal of Righteousness")},
+    {label = "Seal of Command",       value = "Seal of Command",       icon = GetSpellIcon("Seal of Command")},
+    {label = "Seal of the Crusader",  value = "Seal of the Crusader",  icon = GetSpellIcon("Seal of the Crusader")},
+    {label = "Seal of Fury",          value = "Seal of Fury",          icon = GetSpellIcon("Seal of Fury")},
+    {label = "Seal of Justice",       value = "Seal of Justice",       icon = GetSpellIcon("Seal of Justice")},
+    {label = "Seal of Light",         value = "Seal of Light",         icon = GetSpellIcon("Seal of Light")},
+    {label = "Seal of Wisdom",        value = "Seal of Wisdom",        icon = GetSpellIcon("Seal of Wisdom")},
+    {label = "Disabled",              value = false, icon = DISABLED_ICON},
+}
+
 local function CreateMini()
     mini = CreateFrame("Frame", "DelphiToggleBar", UIParent, "BackdropTemplate")
-    mini:SetSize(6 + HANDLEW + 3 * (GAP + CELL) + 6, CELL + 12)
+    mini:SetSize(6 + HANDLEW + 4 * (GAP + CELL) + 6, CELL + 12)
     mini:SetClampedToScreen(true)
     mini:SetMovable(true)
     mini:EnableMouse(true)
@@ -238,17 +250,7 @@ local function CreateMini()
     handle.label:SetPoint("CENTER")
     handle.label:SetText("Delphi")
 
-    local seal = AddOverrideSlot(mini, handle, "seal", "Seal", {
-        {label = "Auto",                 value = 0,     icon = AUTO_ICON},
-        {label = "Seal of Righteousness", value = "Seal of Righteousness", icon = GetSpellIcon("Seal of Righteousness")},
-        {label = "Seal of Command",       value = "Seal of Command",       icon = GetSpellIcon("Seal of Command")},
-        {label = "Seal of the Crusader",  value = "Seal of the Crusader",  icon = GetSpellIcon("Seal of the Crusader")},
-        {label = "Seal of Fury",          value = "Seal of Fury",          icon = GetSpellIcon("Seal of Fury")},
-        {label = "Seal of Justice",       value = "Seal of Justice",       icon = GetSpellIcon("Seal of Justice")},
-        {label = "Seal of Light",         value = "Seal of Light",         icon = GetSpellIcon("Seal of Light")},
-        {label = "Seal of Wisdom",        value = "Seal of Wisdom",        icon = GetSpellIcon("Seal of Wisdom")},
-        {label = "Disabled",              value = false, icon = DISABLED_ICON},
-    })
+    local seal = AddOverrideSlot(mini, handle, "seal", "Seal", SEAL_CHOICES)
 
     local aura = AddOverrideSlot(mini, seal, "aura", "Aura", {
         {label = "Auto",                    value = 0,     icon = AUTO_ICON},
@@ -271,6 +273,8 @@ local function CreateMini()
         {label = "Blessing of Light",     value = "Blessing of Light",     icon = GetSpellIcon("Blessing of Light")},
         {label = "Disabled",              value = false, icon = DISABLED_ICON},
     })
+
+    local debuffseal = AddOverrideSlot(mini, blessing, "debuffseal", "Debuff Seal (Judgement twist)", SEAL_CHOICES)
 
     mini:Show()
 end
