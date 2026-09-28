@@ -4,6 +4,7 @@
 ## Title: Delphi
 ## DefaultState: Enabled
 ## Notes: Custom
+## SavedVariables: DelphiDB
 
 # Utility functions with no external dependencies
 Table.lua
