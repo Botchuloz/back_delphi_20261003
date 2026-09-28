@@ -1,4 +1,4 @@
-# Hermes Class Rotation Guide
+# Delphi Class Rotation Guide
 
 This repository contains class-specific Lua rotation logic for Hermes. Each class file defines the spells it can use, binds those spells to unit groups, optionally adds helper functions, and implements the cast sequence for every specialization.
 
