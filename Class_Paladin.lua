@@ -14,11 +14,12 @@ local _global  = delphi.pythia.global
 --   /run delphi.override.seal = 0                      -- Auto (role/branch default)
 --   /run delphi.override.seal = "Seal of Command"       -- Manual (cast this instead)
 --   /run delphi.override.seal = false                   -- Disabled (cast nothing here)
--- Same pattern applies to delphi.override.aura.
+-- Same pattern applies to delphi.override.aura and delphi.override.blessing.
 --==========================================================================
 delphi.override = delphi.override or {}
 delphi.override.seal = delphi.override.seal or 0
 delphi.override.aura = delphi.override.aura or 0
+delphi.override.blessing = delphi.override.blessing or 0
 
 
 --==========================================================================
@@ -389,6 +390,7 @@ function _paladin.CoreLogic()
 
             local aura = ResolveOverride(delphi.override.aura, _spell.retribution_aura)
             local seal = ResolveOverride(delphi.override.seal, _spell.seal_of_the_crusader)
+            local blessing = ResolveOverride(delphi.override.blessing, _spell.blessing_of_might)
 
 
             if 1 == 0 then
@@ -416,6 +418,18 @@ function _paladin.CoreLogic()
                 }
             ) then
                 --print("Seal: "..tostring(seal))
+
+
+            elseif blessing and CastSpellUnits(
+                blessing
+                ,_unitids.player
+                ,true
+                ,{
+                    SpellUnit_AliveAndFriendly
+                    ,SpellUnit_MyBuffExpired
+                }
+            ) then
+                --print("Blessing: "..tostring(blessing))
 
 
             elseif CastSpellUnits(
