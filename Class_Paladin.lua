@@ -14,16 +14,11 @@ local _global  = delphi.pythia.global
 --   /run delphi.override.seal = 0                      -- Auto (role/branch default)
 --   /run delphi.override.seal = "Seal of Command"       -- Manual (cast this instead)
 --   /run delphi.override.seal = false                   -- Disabled (cast nothing here)
+--   /run delphi.override.aura = "__FB__"                -- Inherit from ForeverBlessings
 -- Same pattern applies to delphi.override.aura, delphi.override.blessing,
--- and delphi.override.debuffseal.
---
--- delphi.override.debuffseal is the seal Judgement twists to/consumes for
--- its debuff (kept separate from `seal`, the maintenance/buff seal). The
--- gate below (RemainingCooldown on both Judgement and the seal itself,
--- plus the buff still being up, plus SpellUnit_Debuff_ExpiringNextGCDOrExpired
--- from SpellUnit_Delegates_Bool.lua) is the user's own design, not verified
--- against WoWF's actual Judgement/seal mechanics yet - test in-game before
--- trusting it.
+-- and delphi.override.debuffseal. "__FB__" (inherit from ForeverBlessings)
+-- is only meaningful for aura/blessing - see ForeverBlessings integration
+-- block below.
 --==========================================================================
 delphi.override = delphi.override or {}
 delphi.override.seal = delphi.override.seal or 0
@@ -150,14 +145,107 @@ end
 
 
 --==========================================================================
--- Override resolver - three states:
+-- ForeverBlessings integration (optional) - reads YOUR OWN aura/blessing
+-- assignment out of the ForeverBlessings addon (github.com/myrdev/ForeverBlessings)
+-- when it's loaded, so delphi.override.aura / .blessing can be set to
+-- "__FB__" to inherit from it instead of a hardcoded spell.
+--
+-- ForeverBlessings exposes itself as the global `ForeverBlessings` table
+-- (its Core.lua does `_G.ForeverBlessings = FB`). Your own row always lives
+-- at FB.rows[FB.me] regardless of which addon assigned it - notably, when
+-- FB's PallyPower bridge is on (FB.db.ppBridge, toggled with /fb pp) and
+-- you're in raid mode, a PallyPower-using raid leader's ASSIGN message gets
+-- written into that same row by FB itself (see FBOnBridgeMessage in FB's
+-- Bridge.lua). So reading FB.rows[FB.me] here picks up PallyPower-assigned
+-- plans for free - no separate PallyPower reader needed.
+--
+-- Both helpers fail soft (return nil) if ForeverBlessings isn't loaded, you
+-- have no assignment set, or anything about its internal shape doesn't
+-- match what's documented here - ResolveOverride() then falls back to
+-- auto_default. This integration should never be able to error CoreLogic().
+--==========================================================================
+local FB_INHERIT = "__FB__"
+
+local function ForeverBlessings_Aura()
+    local FB = _G.ForeverBlessings
+    if not FB or not FB.rows or not FB.me then
+        return nil
+    end
+    local row = FB.rows[FB.me]
+    if not row or not row.aura or row.aura == 0 then
+        return nil
+    end
+    local ok, name = pcall(function() return FB:AuraInfo(row.aura) end)
+    if ok then
+        return name
+    end
+    return nil
+end
+
+-- Your own column in FB's blessing grid: your class index in raid mode
+-- (FB.CLASSES), your bucket in dungeon mode (FB.members[you].bucket).
+local function ForeverBlessings_OwnColumn(FB, mode)
+    if mode == "raid" then
+        for i, class in ipairs(FB.CLASSES or {}) do
+            if class == "PALADIN" then
+                return i
+            end
+        end
+    else
+        for _, m in ipairs(FB.members or {}) do
+            if m.name == FB.me then
+                return m.bucket
+            end
+        end
+    end
+    return nil
+end
+
+local function ForeverBlessings_Blessing()
+    local FB = _G.ForeverBlessings
+    if not FB or not FB.rows or not FB.me then
+        return nil
+    end
+    local row = FB.rows[FB.me]
+    if not row then
+        return nil
+    end
+
+    local ok, name = pcall(function()
+        local mode = FB:Mode()
+        local col = ForeverBlessings_OwnColumn(FB, mode)
+        if not col then
+            return nil
+        end
+        local values = FB:Values(row, mode)
+        local idx = values and values[col] or 0
+        if not idx or idx == 0 then
+            return nil
+        end
+        return FB:CastName(idx, mode)
+    end)
+
+    if ok then
+        return name
+    end
+    return nil
+end
+
+
+--==========================================================================
+-- Override resolver - three states, plus an optional ForeverBlessings
+-- inherit path:
 --   0 (or nil)     -> Auto: use whatever default the caller passes in
 --   false          -> Disabled: caller must skip casting this slot entirely
+--   "__FB__"       -> Inherit: use fb_resolver() if given and it returns a
+--                     value, else fall back to auto_default
 --   anything else  -> Manual: use this exact value
 --==========================================================================
-function ResolveOverride(manual_value, auto_default)
+function ResolveOverride(manual_value, auto_default, fb_resolver)
     if manual_value == false then
         return false
+    elseif manual_value == FB_INHERIT then
+        return (fb_resolver and fb_resolver()) or auto_default
     elseif manual_value and manual_value ~= 0 then
         return manual_value
     else
@@ -400,9 +488,9 @@ function _paladin.CoreLogic()
         elseif dps_on then
 
 
-            local aura = ResolveOverride(delphi.override.aura, _spell.retribution_aura)
+            local aura = ResolveOverride(delphi.override.aura, _spell.retribution_aura, ForeverBlessings_Aura)
             local seal = ResolveOverride(delphi.override.seal, _spell.seal_of_the_crusader)
-            local blessing = ResolveOverride(delphi.override.blessing, _spell.blessing_of_might)
+            local blessing = ResolveOverride(delphi.override.blessing, _spell.blessing_of_might, ForeverBlessings_Blessing)
             -- Spell selection for the seal Judgement should twist to/consume
             -- for its debuff. Kept distinct from `seal` (the maintenance
             -- buff seal) above.
