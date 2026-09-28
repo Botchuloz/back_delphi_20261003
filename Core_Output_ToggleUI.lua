@@ -8,6 +8,12 @@
 -- Blessing, and Debuff Seal are wired so far; Role and Healing reuse the
 -- same helper next. Slot size (36px) matches ForeverBlessings' mini bar
 -- (MINI = 36, "same size as an action button" per its own comment).
+--
+-- Aura and Blessing also offer an "Inherit (ForeverBlessings)" choice
+-- (value "__FB__") that reads your assignment out of the ForeverBlessings
+-- addon at cast time - see ForeverBlessings_Aura()/ForeverBlessings_Blessing()
+-- in Class_Paladin.lua for the read side. FB_ICON (Spell_Holy_AuraMastery)
+-- marks that choice here.
 --==========================================================================
 
 delphi.override = delphi.override or {}
@@ -17,6 +23,8 @@ delphi.db.ui = delphi.db.ui or {}
 local FLAT = "Interface\\Buttons\\WHITE8x8"
 local AUTO_ICON = 136243 -- Trade_Engineering, used for "Auto" (not a real spell)
 local DISABLED_ICON = "Interface\\RaidFrame\\ReadyCheck-NotReady" -- red X, used for "Disabled"
+local FB_ICON = 135872 -- Spell_Holy_AuraMastery, used for "Inherit (ForeverBlessings)"
+local FB_INHERIT = "__FB__"
 
 local C = {
     bg     = {0.07, 0.075, 0.09, 0.96},
@@ -204,6 +212,8 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices)
             GameTooltip:AddLine("Disabled", 0.8, 0.8, 0.8)
         elseif v == 0 or v == nil then
             GameTooltip:AddLine("Auto", 0.8, 0.8, 0.8)
+        elseif v == FB_INHERIT then
+            GameTooltip:AddLine("Inherit (ForeverBlessings)", 0.8, 0.8, 0.8)
         else
             GameTooltip:AddLine(tostring(v), 0.8, 0.8, 0.8)
         end
@@ -214,10 +224,27 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices)
     return slot
 end
 
+-- Full seal list - used by the Seal (buff-maintenance) slot, where any
+-- seal is a valid choice regardless of whether it leaves a debuff.
 local SEAL_CHOICES = {
     {label = "Auto",                 value = 0,     icon = AUTO_ICON},
     {label = "Seal of Righteousness", value = "Seal of Righteousness", icon = GetSpellIcon("Seal of Righteousness")},
     {label = "Seal of Command",       value = "Seal of Command",       icon = GetSpellIcon("Seal of Command")},
+    {label = "Seal of the Crusader",  value = "Seal of the Crusader",  icon = GetSpellIcon("Seal of the Crusader")},
+    {label = "Seal of Fury",          value = "Seal of Fury",          icon = GetSpellIcon("Seal of Fury")},
+    {label = "Seal of Justice",       value = "Seal of Justice",       icon = GetSpellIcon("Seal of Justice")},
+    {label = "Seal of Light",         value = "Seal of Light",         icon = GetSpellIcon("Seal of Light")},
+    {label = "Seal of Wisdom",        value = "Seal of Wisdom",        icon = GetSpellIcon("Seal of Wisdom")},
+    {label = "Disabled",              value = false, icon = DISABLED_ICON},
+}
+
+-- Debuff-only seal list - used by the Debuff Seal (Judgement twist) slot.
+-- Seal of Righteousness and Seal of Command are deliberately excluded:
+-- neither leaves a debuff when judged (Righteousness is a flat melee
+-- proc, Command is a bonus-damage proc) - they're DPS seals used as part
+-- of the normal Judgement rotation, not seals worth twisting for a debuff.
+local DEBUFF_SEAL_CHOICES = {
+    {label = "Auto",                 value = 0,     icon = AUTO_ICON},
     {label = "Seal of the Crusader",  value = "Seal of the Crusader",  icon = GetSpellIcon("Seal of the Crusader")},
     {label = "Seal of Fury",          value = "Seal of Fury",          icon = GetSpellIcon("Seal of Fury")},
     {label = "Seal of Justice",       value = "Seal of Justice",       icon = GetSpellIcon("Seal of Justice")},
@@ -254,6 +281,7 @@ local function CreateMini()
 
     local aura = AddOverrideSlot(mini, seal, "aura", "Aura", {
         {label = "Auto",                    value = 0,     icon = AUTO_ICON},
+        {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
         {label = "Devotion Aura",           value = "Devotion Aura",           icon = GetSpellIcon("Devotion Aura")},
         {label = "Retribution Aura",        value = "Retribution Aura",        icon = GetSpellIcon("Retribution Aura")},
         {label = "Concentration Aura",      value = "Concentration Aura",      icon = GetSpellIcon("Concentration Aura")},
@@ -265,6 +293,7 @@ local function CreateMini()
 
     local blessing = AddOverrideSlot(mini, aura, "blessing", "Blessing", {
         {label = "Auto",                  value = 0,     icon = AUTO_ICON},
+        {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
         {label = "Blessing of Might",     value = "Blessing of Might",     icon = GetSpellIcon("Blessing of Might")},
         {label = "Blessing of Kings",     value = "Blessing of Kings",     icon = GetSpellIcon("Blessing of Kings")},
         {label = "Blessing of Wisdom",    value = "Blessing of Wisdom",    icon = GetSpellIcon("Blessing of Wisdom")},
@@ -274,7 +303,7 @@ local function CreateMini()
         {label = "Disabled",              value = false, icon = DISABLED_ICON},
     })
 
-    local debuffseal = AddOverrideSlot(mini, blessing, "debuffseal", "Debuff Seal (Judgement twist)", SEAL_CHOICES)
+    local debuffseal = AddOverrideSlot(mini, blessing, "debuffseal", "Debuff Seal (Judgement twist)", DEBUFF_SEAL_CHOICES)
 
     mini:Show()
 end
