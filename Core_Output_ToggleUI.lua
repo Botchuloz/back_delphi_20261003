@@ -2,10 +2,11 @@
 -- Core_Output_ToggleUI.lua
 -- Draggable mini bar + click-to-open picker flyout, styled after
 -- ForeverBlessings' assignment window (one shared picker, reused per slot,
--- real spell icons instead of text). This is a first testable slice: just
--- the Seal slot, wired to delphi.override.seal (see Class_Paladin.lua /
--- ResolveOverride()). Once proven, the same CreateSlot()/picker plumbing
--- gets reused for Aura, Blessing, Debuff Seal, Role, and Healing.
+-- real spell icons instead of text). AddOverrideSlot() is the reusable
+-- piece: give it a delphi.override.<key>, a tooltip label, and a choice
+-- list, and it wires up the icon slot + picker + state update. Seal and
+-- Aura are wired so far; Blessing, Debuff Seal, Role, and Healing reuse
+-- the same helper next.
 --==========================================================================
 
 delphi.override = delphi.override or {}
@@ -161,7 +162,7 @@ local mini
 
 local function CreateSlot(parent, initialIcon)
     local s = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    s:SetSize(30, 30)
+    s:SetSize(CELL, CELL)
     Skin(s, C.cell, C.border)
     s.icon = s:CreateTexture(nil, "ARTWORK")
     s.icon:SetPoint("TOPLEFT", 2, -2)
@@ -171,9 +172,49 @@ local function CreateSlot(parent, initialIcon)
     return s
 end
 
+-- Reusable slot wiring: key is the delphi.override.<key> this slot edits,
+-- tooltipLabel is shown on hover, choices is the picker's option list
+-- (see ShowPicker above for the shape). Returns the created slot frame so
+-- the next slot can anchor off it.
+local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices)
+    local initialIcon = AUTO_ICON
+    for _, c in ipairs(choices) do
+        if c.value == delphi.override[key] then
+            initialIcon = c.icon
+            break
+        end
+    end
+
+    local slot = CreateSlot(parent, initialIcon)
+    slot:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
+
+    slot:SetScript("OnClick", function(self)
+        ShowPicker(self, choices, function(value, icon)
+            delphi.override[key] = value
+            self.icon:SetTexture(icon)
+        end)
+    end)
+    slot:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine(tooltipLabel)
+        local v = delphi.override[key]
+        if v == false then
+            GameTooltip:AddLine("Disabled", 0.8, 0.8, 0.8)
+        elseif v == 0 or v == nil then
+            GameTooltip:AddLine("Auto", 0.8, 0.8, 0.8)
+        else
+            GameTooltip:AddLine(tostring(v), 0.8, 0.8, 0.8)
+        end
+        GameTooltip:Show()
+    end)
+    slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    return slot
+end
+
 local function CreateMini()
     mini = CreateFrame("Frame", "DelphiToggleBar", UIParent, "BackdropTemplate")
-    mini:SetSize(120, 42)
+    mini:SetSize(156, 42)
     mini:SetClampedToScreen(true)
     mini:SetMovable(true)
     mini:EnableMouse(true)
@@ -187,7 +228,7 @@ local function CreateMini()
     RestorePos(mini, "miniPos", {"TOP", UIParent, "TOP", 0, -140})
 
     local handle = CreateFrame("Button", nil, mini, "BackdropTemplate")
-    handle:SetSize(30, 30)
+    handle:SetSize(CELL, CELL)
     handle:SetPoint("LEFT", 6, 0)
     Skin(handle, C.cell, C.gold)
     handle.label = handle:CreateFontString(nil, "OVERLAY")
@@ -195,41 +236,28 @@ local function CreateMini()
     handle.label:SetPoint("CENTER")
     handle.label:SetText("Delphi")
 
-    -- Seal slot: first testable slice, wired to the already-proven
-    -- delphi.override.seal / ResolveOverride() mechanic. Starts on the
-    -- Auto icon since delphi.override.seal defaults to 0 at load.
-    local seal = CreateSlot(mini, AUTO_ICON)
-    seal:SetPoint("LEFT", handle, "RIGHT", 6, 0)
-    seal:SetScript("OnClick", function(self)
-        ShowPicker(self, {
-            {label = "Auto",                 value = 0,     icon = AUTO_ICON},
-            {label = "Seal of Righteousness", value = "Seal of Righteousness", icon = GetSpellIcon("Seal of Righteousness")},
-            {label = "Seal of Command",       value = "Seal of Command",       icon = GetSpellIcon("Seal of Command")},
-            {label = "Seal of the Crusader",  value = "Seal of the Crusader",  icon = GetSpellIcon("Seal of the Crusader")},
-            {label = "Seal of Fury",          value = "Seal of Fury",          icon = GetSpellIcon("Seal of Fury")},
-            {label = "Seal of Justice",       value = "Seal of Justice",       icon = GetSpellIcon("Seal of Justice")},
-            {label = "Seal of Light",         value = "Seal of Light",         icon = GetSpellIcon("Seal of Light")},
-            {label = "Seal of Wisdom",        value = "Seal of Wisdom",        icon = GetSpellIcon("Seal of Wisdom")},
-            {label = "Disabled",              value = false, icon = DISABLED_ICON},
-        }, function(value, icon)
-            delphi.override.seal = value
-            self.icon:SetTexture(icon)
-        end)
-    end)
-    seal:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine("Seal")
-        local v = delphi.override.seal
-        if v == false then
-            GameTooltip:AddLine("Disabled", 0.8, 0.8, 0.8)
-        elseif v == 0 or v == nil then
-            GameTooltip:AddLine("Auto", 0.8, 0.8, 0.8)
-        else
-            GameTooltip:AddLine(tostring(v), 0.8, 0.8, 0.8)
-        end
-        GameTooltip:Show()
-    end)
-    seal:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    local seal = AddOverrideSlot(mini, handle, "seal", "Seal", {
+        {label = "Auto",                 value = 0,     icon = AUTO_ICON},
+        {label = "Seal of Righteousness", value = "Seal of Righteousness", icon = GetSpellIcon("Seal of Righteousness")},
+        {label = "Seal of Command",       value = "Seal of Command",       icon = GetSpellIcon("Seal of Command")},
+        {label = "Seal of the Crusader",  value = "Seal of the Crusader",  icon = GetSpellIcon("Seal of the Crusader")},
+        {label = "Seal of Fury",          value = "Seal of Fury",          icon = GetSpellIcon("Seal of Fury")},
+        {label = "Seal of Justice",       value = "Seal of Justice",       icon = GetSpellIcon("Seal of Justice")},
+        {label = "Seal of Light",         value = "Seal of Light",         icon = GetSpellIcon("Seal of Light")},
+        {label = "Seal of Wisdom",        value = "Seal of Wisdom",        icon = GetSpellIcon("Seal of Wisdom")},
+        {label = "Disabled",              value = false, icon = DISABLED_ICON},
+    })
+
+    local aura = AddOverrideSlot(mini, seal, "aura", "Aura", {
+        {label = "Auto",                    value = 0,     icon = AUTO_ICON},
+        {label = "Devotion Aura",           value = "Devotion Aura",           icon = GetSpellIcon("Devotion Aura")},
+        {label = "Retribution Aura",        value = "Retribution Aura",        icon = GetSpellIcon("Retribution Aura")},
+        {label = "Concentration Aura",      value = "Concentration Aura",      icon = GetSpellIcon("Concentration Aura")},
+        {label = "Shadow Resistance Aura",  value = "Shadow Resistance Aura",  icon = GetSpellIcon("Shadow Resistance Aura")},
+        {label = "Frost Resistance Aura",   value = "Frost Resistance Aura",   icon = GetSpellIcon("Frost Resistance Aura")},
+        {label = "Fire Resistance Aura",    value = "Fire Resistance Aura",    icon = GetSpellIcon("Fire Resistance Aura")},
+        {label = "Disabled",                value = false, icon = DISABLED_ICON},
+    })
 
     mini:Show()
 end
