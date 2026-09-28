@@ -6,7 +6,8 @@
 -- piece: give it a delphi.override.<key>, a tooltip label, and a choice
 -- list, and it wires up the icon slot + picker + state update. Seal, Aura,
 -- and Blessing are wired so far; Debuff Seal, Role, and Healing reuse the
--- same helper next.
+-- same helper next. Slot size (36px) matches ForeverBlessings' mini bar
+-- (MINI = 36, "same size as an action button" per its own comment).
 --==========================================================================
 
 delphi.override = delphi.override or {}
@@ -66,7 +67,8 @@ end
 -- choice. Selecting one calls back into on_select(value, icon), then closes.
 --==========================================================================
 local picker
-local CELL, GAP = 30, 4
+local CELL, GAP = 36, 6 -- CELL matches ForeverBlessings' mini bar (MINI = 36)
+local HANDLEW = 30 -- ForeverBlessings' handle is narrower than its slots too
 
 local function HidePicker()
     if picker then picker:Hide() end
@@ -186,7 +188,7 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices)
     end
 
     local slot = CreateSlot(parent, initialIcon)
-    slot:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
+    slot:SetPoint("LEFT", anchor, "RIGHT", GAP, 0)
 
     slot:SetScript("OnClick", function(self)
         ShowPicker(self, choices, function(value, icon)
@@ -214,7 +216,7 @@ end
 
 local function CreateMini()
     mini = CreateFrame("Frame", "DelphiToggleBar", UIParent, "BackdropTemplate")
-    mini:SetSize(192, 42)
+    mini:SetSize(6 + HANDLEW + 3 * (GAP + CELL) + 6, CELL + 12)
     mini:SetClampedToScreen(true)
     mini:SetMovable(true)
     mini:EnableMouse(true)
@@ -228,7 +230,7 @@ local function CreateMini()
     RestorePos(mini, "miniPos", {"TOP", UIParent, "TOP", 0, -140})
 
     local handle = CreateFrame("Button", nil, mini, "BackdropTemplate")
-    handle:SetSize(CELL, CELL)
+    handle:SetSize(HANDLEW, CELL)
     handle:SetPoint("LEFT", 6, 0)
     Skin(handle, C.cell, C.gold)
     handle.label = handle:CreateFontString(nil, "OVERLAY")
