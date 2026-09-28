@@ -5,8 +5,7 @@
 -- real spell icons instead of text). AddOverrideSlot() is the reusable
 -- piece: give it a delphi.override.<key>, a tooltip label, and a choice
 -- list, and it wires up the icon slot + picker + state update. Bar order:
--- handle, Aura, Blessing, Seal, Debuff Seal. Role and Healing reuse the
--- same helper next. Slot size (36px) matches ForeverBlessings' mini bar
+-- handle, Context, Mode, Healing, Role, Aura, Blessing, Seal, Debuff Seal. Slot size (36px) matches ForeverBlessings' mini bar
 -- (MINI = 36, "same size as an action button" per its own comment).
 --
 -- Aura and Blessing also offer an "Inherit (ForeverBlessings)" choice
@@ -17,6 +16,9 @@
 --==========================================================================
 
 delphi.override = delphi.override or {}
+if delphi.override.context == nil then delphi.override.context = "pve" end
+if delphi.override.role == nil then delphi.override.role = "dps_dd" end
+if delphi.override.healing == nil then delphi.override.healing = true end
 delphi.db = delphi.db or {}
 delphi.db.ui = delphi.db.ui or {}
 
@@ -136,6 +138,7 @@ end
 -- choices = { {label="Auto", value=0, icon=AUTO_ICON}, {label="Seal of Command", value="Seal of Command", icon=1234}, ... }
 -- on_select receives (value, icon) so the calling slot can update its own displayed icon.
 local function ShowPicker(cell, choices, on_select)
+    if type(choices) == "function" then choices = choices() end
     if not picker then CreatePicker() end
     if picker:IsShown() and picker.anchor == cell then
         HidePicker()
@@ -186,9 +189,9 @@ end
 -- tooltipLabel is shown on hover, choices is the picker's option list
 -- (see ShowPicker above for the shape). Returns the created slot frame so
 -- the next slot can anchor off it.
-local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices)
+local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices, changed)
     local initialIcon = AUTO_ICON
-    for _, c in ipairs(choices) do
+    for _, c in ipairs(type(choices) == "function" and choices() or choices) do
         if c.value == delphi.override[key] then
             initialIcon = c.icon
             break
@@ -202,6 +205,7 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices)
         ShowPicker(self, choices, function(value, icon)
             delphi.override[key] = value
             self.icon:SetTexture(icon)
+            if changed then changed(value) end
         end)
     end)
     slot:SetScript("OnEnter", function(self)
@@ -220,7 +224,16 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices)
         GameTooltip:Show()
     end)
     slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
+    slot.Sync = function(self)
+        local list = type(choices) == "function" and choices() or choices
+        for _, c in ipairs(list) do
+            if c.value == delphi.override[key] then
+                self.icon:SetTexture(c.icon)
+                return
+            end
+        end
+        self.icon:SetTexture(AUTO_ICON)
+    end
     return slot
 end
 
@@ -253,9 +266,62 @@ local DEBUFF_SEAL_CHOICES = {
     {label = "Disabled",              value = false, icon = DISABLED_ICON},
 }
 
+local CONTEXT_CHOICES = {
+    {label="PvE", value="pve", icon=136235},
+    {label="PvP", value="pvp", icon=132486},
+}
+local HEALING_CHOICES = {
+    {label="Healing On", value=true, icon=135920},
+    {label="Healing Off", value=false, icon=DISABLED_ICON},
+}
+local ROLE_PVE = {
+    {label="Main Tank", value="main_tank", icon=135880},
+    {label="Off Tank", value="off_tank", icon=134952},
+    {label="DPS DD", value="dps_dd", icon=236304},
+    {label="DPS AoE", value="dps_aoe", icon=1387356},
+    {label="Role Off", value="off", icon=DISABLED_ICON},
+}
+local ROLE_PVP = {ROLE_PVE[1], ROLE_PVE[3], ROLE_PVE[4], ROLE_PVE[5]}
+local MODE_CHOICES = {
+    {label="DD", value="dd", icon=589068},
+    {label="AoE", value="aoe", icon=236303},
+}
+local function RoleChoices()
+    return delphi.override.context == "pvp" and ROLE_PVP or ROLE_PVE
+end
+local function SelectMode(value)
+    delphi.runtime.profile = value
+    delphi.runtime.changedprofile = GetTime()
+    if delphi.override.role == "dps_dd" or delphi.override.role == "dps_aoe" then
+        delphi.override.role = value == "aoe" and "dps_aoe" or "dps_dd"
+    end
+end
+local function AddModeSlot(parent, anchor)
+    local slot = CreateSlot(parent, MODE_CHOICES[1].icon)
+    slot:SetPoint("LEFT", anchor, "RIGHT", GAP, 0)
+    slot:SetScript("OnClick", function(self)
+        ShowPicker(self, MODE_CHOICES, function(value, icon)
+            SelectMode(value)
+            self.icon:SetTexture(icon)
+        end)
+    end)
+    slot:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine("Mode: " .. tostring(delphi.runtime.profile))
+        GameTooltip:AddLine("NUMPAD7 DD; NUMPAD8 AoE; NUMPAD9 disables role and healing")
+        GameTooltip:Show()
+    end)
+    slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    slot.Sync = function(self)
+        self.icon:SetTexture(delphi.runtime.profile == "aoe"
+            and MODE_CHOICES[2].icon or MODE_CHOICES[1].icon)
+    end
+    return slot
+end
+
 local function CreateMini()
     mini = CreateFrame("Frame", "DelphiToggleBar", UIParent, "BackdropTemplate")
-    mini:SetSize(6 + HANDLEW + 4 * (GAP + CELL) + 6, CELL + 12)
+    mini:SetSize(6 + HANDLEW + 8 * (GAP + CELL) + 6, CELL + 27)
     mini:SetClampedToScreen(true)
     mini:SetMovable(true)
     mini:EnableMouse(true)
@@ -277,7 +343,20 @@ local function CreateMini()
     handle.label:SetPoint("CENTER")
     handle.label:SetText("Delphi")
 
-    local aura = AddOverrideSlot(mini, handle, "aura", "Aura", {
+    local context = AddOverrideSlot(mini, handle, "context", "Context", CONTEXT_CHOICES,
+        function(value)
+            if value == "pvp" and delphi.override.role == "off_tank" then
+                delphi.override.role = "off"
+            end
+        end)
+    local mode = AddModeSlot(mini, context)
+    local healing = AddOverrideSlot(mini, mode, "healing", "Healing", HEALING_CHOICES)
+    local role = AddOverrideSlot(mini, healing, "role", "Role", RoleChoices,
+        function(value)
+            if value == "dps_dd" then SelectMode("dd")
+            elseif value == "dps_aoe" then SelectMode("aoe") end
+        end)
+    local aura = AddOverrideSlot(mini, role, "aura", "Aura", {
         {label = "Auto",                    value = 0,     icon = AUTO_ICON},
         {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
         {label = "Devotion Aura",           value = "Devotion Aura",           icon = GetSpellIcon("Devotion Aura")},
@@ -303,8 +382,33 @@ local function CreateMini()
 
     local seal = AddOverrideSlot(mini, blessing, "seal", "Seal", SEAL_CHOICES)
 
-    local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Debuff Seal (Judgement twist)", DEBUFF_SEAL_CHOICES)
+    local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Judgement seal (effect logic deferred)", DEBUFF_SEAL_CHOICES)
 
+    mini.summary = mini:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    mini.summary:SetPoint("BOTTOMLEFT", mini, "BOTTOMLEFT", 8, 4)
+    mini.summary:SetJustifyH("LEFT")
+    mini:SetScript("OnUpdate", function(self)
+        local current = delphi.runtime.profile
+        if (delphi.override.role == "dps_dd" or delphi.override.role == "dps_aoe")
+            and (current == "dd" or current == "aoe") then
+            delphi.override.role = current == "aoe" and "dps_aoe" or "dps_dd"
+        end
+        if delphi.override.context == "pvp" and delphi.override.role == "off_tank" then
+            delphi.override.role = "off"
+        end
+        context:Sync()
+        mode:Sync()
+        healing:Sync()
+        role:Sync()
+        aura:Sync()
+        blessing:Sync()
+        seal:Sync()
+        debuffseal:Sync()
+        self.summary:SetText(tostring(delphi.override.context) .. " | "
+            .. tostring(current) .. " | Heal "
+            .. (delphi.override.healing == false and "Off" or "On")
+            .. " | " .. tostring(delphi.override.role))
+    end)
     mini:Show()
 end
 

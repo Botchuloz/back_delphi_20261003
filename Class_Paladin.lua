@@ -21,10 +21,10 @@ local _global  = delphi.pythia.global
 -- block below.
 --==========================================================================
 delphi.override = delphi.override or {}
-delphi.override.seal = delphi.override.seal or 0
-delphi.override.aura = delphi.override.aura or 0
-delphi.override.blessing = delphi.override.blessing or 0
-delphi.override.debuffseal = delphi.override.debuffseal or 0
+if delphi.override.seal == nil then delphi.override.seal = 0 end
+if delphi.override.aura == nil then delphi.override.aura = 0 end
+if delphi.override.blessing == nil then delphi.override.blessing = 0 end
+if delphi.override.debuffseal == nil then delphi.override.debuffseal = 0 end
 
 
 --==========================================================================
@@ -110,8 +110,8 @@ local ret_spec  = 3
 
 
 --==========================================================================
--- Spec detection - NOT CURRENTLY CALLED. CoreLogic() uses the NUMPAD3
--- heal/dps toggle instead of spec dispatch for now.
+-- Spec detection - NOT CURRENTLY CALLED. CoreLogic uses the independent
+-- role and healing selections instead of spec dispatch.
 --==========================================================================
 local function SpellKnown(spellName)
     if C_Spell and C_Spell.GetSpellInfo then
@@ -342,7 +342,7 @@ function _paladin.SetBinds()
 
 
     BindSpellToUnit("start_attack","","","/startattack",true)
-    CreateIconAndButton("NUMPAD3",250+300,-150,"",2) -- healer or dpser
+    -- Role and Healing are selected in the Delphi toggle UI.
 
 
     --Seals - player only
@@ -361,6 +361,22 @@ function _paladin.SetBinds()
     BindSpellToUnits(_spell.blessing_of_wisdom,    _unitids.player)
     BindSpellToUnits(_spell.righteous_fury,        _unitids.player)
 
+
+    -- Additional manual and ForeverBlessings choices must be bound.
+    BindSpellToUnits(_spell.seal_of_justice, _unitids.player)
+    BindSpellToUnits(_spell.seal_of_light, _unitids.player)
+    BindSpellToUnits(_spell.seal_of_wisdom, _unitids.player)
+    BindSpellToUnits(_spell.shadow_resistance_aura, _unitids.player)
+    BindSpellToUnits(_spell.frost_resistance_aura, _unitids.player)
+    BindSpellToUnits(_spell.fire_resistance_aura, _unitids.player)
+    BindSpellToUnits(_spell.blessing_of_salvation, _unitids.player)
+    BindSpellToUnits(_spell.blessing_of_light, _unitids.player)
+    BindSpellToUnits(_spell.blessing_of_sacrifice, _unitids.player)
+    BindSpellToUnits(_spell.greater_blessing_of_might, _unitids.player)
+    BindSpellToUnits(_spell.greater_blessing_of_wisdom, _unitids.player)
+    BindSpellToUnits(_spell.greater_blessing_of_kings, _unitids.player)
+    BindSpellToUnits(_spell.greater_blessing_of_salvation, _unitids.player)
+    BindSpellToUnits(_spell.greater_blessing_of_light, _unitids.player)
 
     --Offense - standard hostile fallback chain
     BindSpellToUnits(_spell.judgement,             _unitids.standard_hostile)
@@ -416,279 +432,722 @@ end
 --   for "first match wins" instead of "best-scoring match wins"
 --   (CheckRankDelegates explicitly rejects a table here).
 --=================================================================
+-- Resource checks use the WoWF-tested cost table shape.
+-- nil may mean zero cost or unknown: only permit nil for a resolvable spell.
+local function EnoughManaForSpell(spell)
+    if not C_Spell or not C_Spell.IsSpellUsable then
+        return false
+    end
+
+    local ok, usable, insufficient_power =
+        pcall(C_Spell.IsSpellUsable, spell)
+
+    if not ok then
+        return false
+    end
+
+    if issecretvalue
+        and (issecretvalue(usable)
+             or issecretvalue(insufficient_power)) then
+        return false
+    end
+
+    return usable == true and insufficient_power ~= true
+end
+
+-- The selected role owns these defaults even when Healing is On.
+-- Role Off uses healer defaults when Healing is On.
+local function RoleOverrides(role, context)
+    local auto_aura = _spell.retribution_aura
+    local auto_blessing = _spell.blessing_of_wisdom
+    local auto_seal, auto_debuffseal
+    if 1 == 0 then
+    elseif role == "main_tank" then
+        auto_seal = context == "pvp" and _spell.seal_of_justice or _spell.seal_of_fury
+        auto_debuffseal = _spell.seal_of_the_crusader
+    elseif role == "off_tank" and context == "pve" then
+        auto_seal = _spell.seal_of_righteousness
+        auto_debuffseal = _spell.seal_of_the_crusader
+    elseif role == "dps_dd" or role == "dps_aoe" then
+        auto_seal = _spell.seal_of_command
+        auto_debuffseal = _spell.seal_of_the_crusader
+    elseif role == "off" then
+        auto_seal = _spell.seal_of_wisdom
+        auto_debuffseal = _spell.seal_of_wisdom
+    else
+        return false, false, false, false
+    end
+    return ResolveOverride(delphi.override.aura, auto_aura, ForeverBlessings_Aura),
+        ResolveOverride(delphi.override.seal, auto_seal),
+        ResolveOverride(delphi.override.blessing, auto_blessing, ForeverBlessings_Blessing),
+        ResolveOverride(delphi.override.debuffseal, auto_debuffseal)
+end
+
 function _paladin.CoreLogic()
-    local heal_on,dps_on = BiStateCheck("NUMPAD3","healer","dpser")
+    local context = delphi.override.context or "pve"
+    local role = delphi.override.role or "dps_dd"
+    local healing_on = delphi.override.healing ~= false
     local combat = CombatStatus()
 
-
     if 1 == 0 then
-
-
     elseif RedLight() then
         _global.Off()
-
-
+    elseif role == "off" and not healing_on then
+        _global.Off()
     elseif delphi.racial.perception and CastSpellUnits(
         delphi.racial.perception
         ,_unitids.player
         ,RemainingCooldown(delphi.racial.perception) < 0.5
-        --PLACEHOLDER: fires off cooldown until SpellUnit_RecentStealthCastNearby()
-        --lands in Core_Events.lua (stealth-cast detection hook, not yet wired in).
-        ,{
-            SpellUnit_AliveAndFriendly
-        }
+            and EnoughManaForSpell(delphi.racial.perception)
+        ,{ SpellUnit_AliveAndFriendly }
     ) then
-        --print("Perception")
-
-
+        -- Existing Perception placeholder; stealth detection not wired.
     elseif delphi.profession.findminerals and CastSpellUnits(
         delphi.profession.findminerals
         ,_unitids.player
         ,RemainingCooldown(delphi.profession.findminerals) < 0.5
+            and EnoughManaForSpell(delphi.profession.findminerals)
             and not combat
             and not SpellUnit_ShouldSkipTrackingCast(delphi.profession.findminerals, "player")
-        ,{
-            SpellUnit_AliveAndFriendly
-        }
+        ,{ SpellUnit_AliveAndFriendly }
     ) then
-        --print("Find Minerals")
-
-
-    elseif GodlyIsDD() then
-
-
-        if 1 == 0 then
-
-
-        elseif heal_on then
-
-
+        -- Find Minerals.
+    elseif context == "pve" and GodlyIsDD() then
+        local acted = false
+        if healing_on then
+            -- PVE / DD / Healing: heals first, not healer buff defaults.
             if 1 == 0 then
 
-
-            elseif CastSpellUnits(
+            elseif _spell.flash_of_light and CastSpellUnits(
                 _spell.flash_of_light
                 ,_unitids.standard_friendly
                 ,RemainingCooldown(_spell.flash_of_light) < 0.5
-                ,{
-                    SpellUnit_AliveAndFriendly
-                    ,SpellUnit_RangeCheck
-                    ,SpellUnit_HealthBelow95
-                }
+                    and EnoughManaForSpell(_spell.flash_of_light)
+                ,{ SpellUnit_AliveAndFriendly, SpellUnit_RangeCheck, SpellUnit_HealthBelow95 }
                 ,RankUnits_MaxHealthDeficit
             ) then
-                --print("Flash of Light")
-
-
-            else
-                _global.Off()
+                acted = true
             end
-
-
-        elseif dps_on then
-
-
-            local aura = ResolveOverride(delphi.override.aura, _spell.retribution_aura, ForeverBlessings_Aura)
-            local seal = ResolveOverride(delphi.override.seal, _spell.seal_of_the_crusader)
-            local blessing = ResolveOverride(delphi.override.blessing, _spell.blessing_of_might, ForeverBlessings_Blessing)
-            -- Spell selection for the seal Judgement should twist to/consume
-            -- for its debuff. Kept distinct from `seal` (the maintenance
-            -- buff seal) above.
-            local debuffseal = ResolveOverride(delphi.override.debuffseal, _spell.seal_of_the_crusader)
-
-
-            if 1 == 0 then
-
-
-            elseif aura and CastSpellUnits(
-                aura
-                ,_unitids.player
-                ,true
-                ,{
-                    SpellUnit_AliveAndFriendly
-                    ,SpellUnit_MyBuffExpired
-                }
-            ) then
-                --print("Aura: "..tostring(aura))
-
-
-            elseif seal and CastSpellUnits(
-                seal
-                ,_unitids.player
-                ,true
-                ,{
-                    SpellUnit_AliveAndFriendly
-                    ,SpellUnit_MyBuffExpired
-                }
-            ) then
-                --print("Seal: "..tostring(seal))
-
-
-            elseif blessing and CastSpellUnits(
-                blessing
-                ,_unitids.player
-                ,true
-                ,{
-                    SpellUnit_AliveAndFriendly
-                    ,SpellUnit_MyBuffExpired
-                }
-            ) then
-                --print("Blessing: "..tostring(blessing))
-
-
-            -- Twist-gated Judgement: your design, not yet verified in-game.
-            -- Fires only when Judgement is off cooldown, the debuffseal is
-            -- also off cooldown, its buff is still active on you, and the
-            -- target's debuff from it is about to expire or already has
-            -- (SpellUnit_Debuff_ExpiringNextGCDOrExpired, from
-            -- SpellUnit_Delegates_Bool.lua). Falls through to the plain
-            -- Judgement cast below if debuffseal is Disabled or the gate
-            -- doesn't line up this tick.
-            elseif debuffseal and CastSpellUnits(
-                _spell.judgement
-                ,_unitids.standard_hostile
-                ,RemainingCooldown(_spell.judgement) < 0.5
-                    and RemainingCooldown(debuffseal) < 0.5
-                    and _unit.player.buff[debuffseal].remaining > 0
-                ,{
-                    SpellUnit_UnitAliveAndHostile
-                    ,SpellUnit_RangeCheck
-                    ,SpellUnit_ValidHarm
-                    ,SpellUnit_Debuff_ExpiringNextGCDOrExpired
-                }
-            ) then
-                --print("Judgement (twist-gated): "..tostring(debuffseal))
-
-
-            elseif CastSpellUnits(
-                _spell.judgement
-                ,_unitids.standard_hostile
-                ,RemainingCooldown(_spell.judgement) < 0.5
-                ,{
-                    SpellUnit_UnitAliveAndHostile
-                    ,SpellUnit_RangeCheck
-                    ,SpellUnit_ValidHarm
-                }
-            ) then
-                --print("Judgement")
-
-
-            elseif CastSpellUnits(
-                _spell.holy_strike
-                ,_unitids.standard_hostile
-                ,RemainingCooldown(_spell.holy_strike) < 0.5
-                ,{
-                    SpellUnit_UnitAliveAndHostile
-                    ,SpellUnit_RangeCheck
-                    ,SpellUnit_ValidHarm
-                }
-            ) then
-                --print("Holy Strike")
-
-
-            else
-                _global.Off()
-            end
-
-
-        else
-            _global.Off()
         end
-
-
-    elseif GodlyIsAOE() then
-
-
-        if 1 == 0 then
-
-
-        elseif heal_on then
-            --PLACEHOLDER: same as the dd heal check above.
-
-
+        if not acted then
             if 1 == 0 then
 
+            elseif role == "main_tank" then
+                -- PVE / DD / Main Tank
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
 
-            elseif CastSpellUnits(
-                _spell.flash_of_light
-                ,_unitids.standard_friendly
-                ,RemainingCooldown(_spell.flash_of_light) < 0.5
-                ,{
-                    SpellUnit_AliveAndFriendly
-                    ,SpellUnit_RangeCheck
-                    ,SpellUnit_HealthBelow95
-                }
-                ,RankUnits_MaxHealthDeficit
-            ) then
-                --print("Flash of Light (aoe placeholder)")
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
 
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
 
-            else
-                _global.Off()
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "off_tank" then
+                -- PVE / DD / Off Tank
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "dps_dd" or role == "dps_aoe" then
+                -- PVE / DD / DPS
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                -- Plain Judgement retained; selected debuffseal's matching
+                -- target-effect maintenance remains deferred.
+                elseif _spell.judgement and CastSpellUnits(
+                    _spell.judgement
+                    ,_unitids.standard_hostile
+                    ,RemainingCooldown(_spell.judgement) < 0.5
+                        and EnoughManaForSpell(_spell.judgement)
+                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                ) then
+                    acted = true
+
+                elseif _spell.holy_strike and CastSpellUnits(
+                    _spell.holy_strike
+                    ,_unitids.standard_hostile
+                    ,RemainingCooldown(_spell.holy_strike) < 0.5
+                        and EnoughManaForSpell(_spell.holy_strike)
+                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "off" then
+                -- PVE / DD / Healing-only
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
             end
-
-
-        elseif dps_on then
-            --PLACEHOLDER: same as the dd damage chain above.
-
-
-            if 1 == 0 then
-
-
-            elseif CastSpellUnits(
-                _spell.seal_of_the_crusader
-                ,_unitids.player
-                ,true
-                ,{
-                    SpellUnit_AliveAndFriendly
-                    ,SpellUnit_MyBuffExpired
-                }
-            ) then
-                --print("Seal of the Crusader (aoe placeholder)")
-
-
-            elseif CastSpellUnits(
-                _spell.judgement
-                ,_unitids.standard_hostile
-                ,RemainingCooldown(_spell.judgement) < 0.5
-                ,{
-                    SpellUnit_UnitAliveAndHostile
-                    ,SpellUnit_RangeCheck
-                    ,SpellUnit_ValidHarm
-                }
-            ) then
-                --print("Judgement (aoe placeholder)")
-
-
-            elseif CastSpellUnits(
-                _spell.holy_strike
-                ,_unitids.standard_hostile
-                ,RemainingCooldown(_spell.holy_strike) < 0.5
-                ,{
-                    SpellUnit_UnitAliveAndHostile
-                    ,SpellUnit_RangeCheck
-                    ,SpellUnit_ValidHarm
-                }
-            ) then
-                --print("Holy Strike (aoe placeholder)")
-
-
-            else
-                _global.Off()
-            end
-
-
-        else
-            _global.Off()
         end
+        if not acted then _global.Off() end
+    elseif context == "pve" and GodlyIsAOE() then
+        local acted = false
+        if healing_on then
+            -- PVE / AOE / Healing: heals first, not healer buff defaults.
+            if 1 == 0 then
+                -- Placeholder: independent healing spell chain goes here.
+            end
+        end
+        if not acted then
+            if 1 == 0 then
 
+            elseif role == "main_tank" then
+                -- PVE / AOE / Main Tank
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
 
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "off_tank" then
+                -- PVE / AOE / Off Tank
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "dps_dd" or role == "dps_aoe" then
+                -- PVE / AOE / DPS
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                -- Plain Judgement retained; selected debuffseal's matching
+                -- target-effect maintenance remains deferred.
+                elseif _spell.judgement and CastSpellUnits(
+                    _spell.judgement
+                    ,_unitids.standard_hostile
+                    ,RemainingCooldown(_spell.judgement) < 0.5
+                        and EnoughManaForSpell(_spell.judgement)
+                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                ) then
+                    acted = true
+
+                elseif _spell.holy_strike and CastSpellUnits(
+                    _spell.holy_strike
+                    ,_unitids.standard_hostile
+                    ,RemainingCooldown(_spell.holy_strike) < 0.5
+                        and EnoughManaForSpell(_spell.holy_strike)
+                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "off" then
+                -- PVE / AOE / Healing-only
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+            end
+        end
+        if not acted then _global.Off() end
+    elseif context == "pvp" and GodlyIsDD() then
+        local acted = false
+        if healing_on then
+            -- PVP / DD / Healing: heals first, not healer buff defaults.
+            if 1 == 0 then
+                -- Placeholder: independent healing spell chain goes here.
+            end
+        end
+        if not acted then
+            if 1 == 0 then
+
+            elseif role == "main_tank" then
+                -- PVP / DD / Main Tank
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "dps_dd" or role == "dps_aoe" then
+                -- PVP / DD / DPS
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                -- Plain Judgement retained; selected debuffseal's matching
+                -- target-effect maintenance remains deferred.
+                elseif _spell.judgement and CastSpellUnits(
+                    _spell.judgement
+                    ,_unitids.standard_hostile
+                    ,RemainingCooldown(_spell.judgement) < 0.5
+                        and EnoughManaForSpell(_spell.judgement)
+                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                ) then
+                    acted = true
+
+                elseif _spell.holy_strike and CastSpellUnits(
+                    _spell.holy_strike
+                    ,_unitids.standard_hostile
+                    ,RemainingCooldown(_spell.holy_strike) < 0.5
+                        and EnoughManaForSpell(_spell.holy_strike)
+                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "off" then
+                -- PVP / DD / Healing-only
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+            end
+        end
+        if not acted then _global.Off() end
+    elseif context == "pvp" and GodlyIsAOE() then
+        local acted = false
+        if healing_on then
+            -- PVP / AOE / Healing: heals first, not healer buff defaults.
+            if 1 == 0 then
+                -- Placeholder: independent healing spell chain goes here.
+            end
+        end
+        if not acted then
+            if 1 == 0 then
+
+            elseif role == "main_tank" then
+                -- PVP / AOE / Main Tank
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "dps_dd" or role == "dps_aoe" then
+                -- PVP / AOE / DPS
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                -- Plain Judgement retained; selected debuffseal's matching
+                -- target-effect maintenance remains deferred.
+                elseif _spell.judgement and CastSpellUnits(
+                    _spell.judgement
+                    ,_unitids.standard_hostile
+                    ,RemainingCooldown(_spell.judgement) < 0.5
+                        and EnoughManaForSpell(_spell.judgement)
+                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                ) then
+                    acted = true
+
+                elseif _spell.holy_strike and CastSpellUnits(
+                    _spell.holy_strike
+                    ,_unitids.standard_hostile
+                    ,RemainingCooldown(_spell.holy_strike) < 0.5
+                        and EnoughManaForSpell(_spell.holy_strike)
+                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+
+            elseif role == "off" then
+                -- PVP / AOE / Healing-only
+                local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
+                if 1 == 0 then
+
+                elseif aura and CastSpellUnits(
+                    aura
+                    ,_unitids.player
+                    ,RemainingCooldown(aura) < 0.5
+                        and EnoughManaForSpell(aura)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif seal and CastSpellUnits(
+                    seal
+                    ,_unitids.player
+                    ,RemainingCooldown(seal) < 0.5
+                        and EnoughManaForSpell(seal)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+
+                elseif blessing and CastSpellUnits(
+                    blessing
+                    ,_unitids.player
+                    ,RemainingCooldown(blessing) < 0.5
+                        and EnoughManaForSpell(blessing)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true
+                end
+                -- debuffseal is resolved for this role; the Judgement-of-X
+                -- target-debuff logic is intentionally not implemented here.
+            end
+        end
+        if not acted then _global.Off() end
     else
         _global.Off()
     end
 end
 
-
---pack it up and store it in global space
+-- Pack it up and store it in global space.
 _paladin.spell = _spell
 delphi.class.Paladin = _paladin

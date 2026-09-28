@@ -146,14 +146,23 @@ CreateNewLabel("class",350+300,100,function() return 0,"HERE GOES CLASS INFO" en
 CreateIconAndButton("global",350+300,-150,"GCD",0,function() return 0,delphi.pythia.global.last_spellunit end)
 CreateIconAndButton("instant",350+300,-250,"INST",0,function() return 0,delphi.pythia.instant.last_spellunit end)
 
-CreateNewStatusIcon("NUMPAD7",170+300,-250,function() if(delphi.runtime.profile==_dd)then return 1,_dd else return 0,_dd end end)
-     CreateButton(_dd,"NUMPAD7","/run delphi.runtime.profile = _dd; delphi.runtime.changedprofile = _now; print(_dd)\n/petassist")
-CreateNewStatusIcon("NUMPAD8",210+300,-250,function() if(delphi.runtime.profile==_aoe)then return 1,_aoe else return 0,_aoe end end)
-    CreateButton(_aoe,"NUMPAD8","/run delphi.runtime.profile = _aoe; delphi.runtime.changedprofile = _now; print(_aoe)")   
-CreateNewStatusIcon("NUMPAD9",250+300,-250,function() if(delphi.runtime.profile==_off)then return 1,_off else return 0,_off end end)
-    CreateButton(_off,"NUMPAD9","/run delphi.runtime.profile = _off\n/petpassive\n/stopattack\n/stopcasting\n/run print(_off)")
-    delphi.runtime.profile = _off
-    delphi.runtime.changedprofile = 0
+CreateNewStatusIcon("NUMPAD7",170+300,-250,function()
+    return delphi.runtime.profile == _dd and not GodlyIsOff() and 1 or 0, _dd
+end)
+CreateButton(_dd,"NUMPAD7",
+    "/run delphi.runtime.profile=_dd;delphi.runtime.changedprofile=GetTime();if delphi.override.role=='dps_aoe' then delphi.override.role='dps_dd' end\n/petassist")
+CreateNewStatusIcon("NUMPAD8",210+300,-250,function()
+    return delphi.runtime.profile == _aoe and not GodlyIsOff() and 1 or 0, _aoe
+end)
+CreateButton(_aoe,"NUMPAD8",
+    "/run delphi.runtime.profile=_aoe;delphi.runtime.changedprofile=GetTime();if delphi.override.role=='dps_dd' then delphi.override.role='dps_aoe' end")
+CreateNewStatusIcon("NUMPAD9",250+300,-250,function()
+    return GodlyIsOff() and 1 or 0, "OFF"
+end)
+CreateButton(_off,"NUMPAD9",
+    "/run delphi.override.role='off';delphi.override.healing=false\n/petpassive\n/stopattack\n/stopcasting\n/run print('OFF')")
+delphi.runtime.profile = _dd
+ delphi.runtime.changedprofile = 0
 
     --CreateIconAndButton("NUMPAD1",170+300,-150,"burn",3)
 --[[/dragonflight zero day]]
