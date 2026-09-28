@@ -4,9 +4,9 @@
 -- ForeverBlessings' assignment window (one shared picker, reused per slot,
 -- real spell icons instead of text). AddOverrideSlot() is the reusable
 -- piece: give it a delphi.override.<key>, a tooltip label, and a choice
--- list, and it wires up the icon slot + picker + state update. Seal and
--- Aura are wired so far; Blessing, Debuff Seal, Role, and Healing reuse
--- the same helper next.
+-- list, and it wires up the icon slot + picker + state update. Seal, Aura,
+-- and Blessing are wired so far; Debuff Seal, Role, and Healing reuse the
+-- same helper next.
 --==========================================================================
 
 delphi.override = delphi.override or {}
@@ -214,7 +214,7 @@ end
 
 local function CreateMini()
     mini = CreateFrame("Frame", "DelphiToggleBar", UIParent, "BackdropTemplate")
-    mini:SetSize(156, 42)
+    mini:SetSize(192, 42)
     mini:SetClampedToScreen(true)
     mini:SetMovable(true)
     mini:EnableMouse(true)
@@ -257,6 +257,17 @@ local function CreateMini()
         {label = "Frost Resistance Aura",   value = "Frost Resistance Aura",   icon = GetSpellIcon("Frost Resistance Aura")},
         {label = "Fire Resistance Aura",    value = "Fire Resistance Aura",    icon = GetSpellIcon("Fire Resistance Aura")},
         {label = "Disabled",                value = false, icon = DISABLED_ICON},
+    })
+
+    local blessing = AddOverrideSlot(mini, aura, "blessing", "Blessing", {
+        {label = "Auto",                  value = 0,     icon = AUTO_ICON},
+        {label = "Blessing of Might",     value = "Blessing of Might",     icon = GetSpellIcon("Blessing of Might")},
+        {label = "Blessing of Kings",     value = "Blessing of Kings",     icon = GetSpellIcon("Blessing of Kings")},
+        {label = "Blessing of Wisdom",    value = "Blessing of Wisdom",    icon = GetSpellIcon("Blessing of Wisdom")},
+        {label = "Blessing of Salvation", value = "Blessing of Salvation", icon = GetSpellIcon("Blessing of Salvation")},
+        {label = "Blessing of Sacrifice", value = "Blessing of Sacrifice", icon = GetSpellIcon("Blessing of Sacrifice")},
+        {label = "Blessing of Light",     value = "Blessing of Light",     icon = GetSpellIcon("Blessing of Light")},
+        {label = "Disabled",              value = false, icon = DISABLED_ICON},
     })
 
     mini:Show()
