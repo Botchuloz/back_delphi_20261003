@@ -130,10 +130,28 @@ end
 -- (or any auto-cast tracking spell) overriding a tracking type the player
 -- already turned on manually, e.g. Sense Undead. WoW only allows one
 -- tracking effect active at a time, so this checks all of them generically.
+-- Prefers the modern C_Minimap namespace, falls back to the old globals
+-- (this WoWF build doesn't expose GetNumTrackingTypes/GetTrackingInfo as
+-- plain globals, only C_Minimap.*).
 --==========================================================================
 function SpellUnit_AnyTrackingActive()
-    for i = 1, GetNumTrackingTypes() do
-        local _, _, active = GetTrackingInfo(i)
+    local numTypes = 0
+    if C_Minimap and C_Minimap.GetNumTrackingTypes then
+        numTypes = C_Minimap.GetNumTrackingTypes()
+    elseif GetNumTrackingTypes then
+        numTypes = GetNumTrackingTypes()
+    end
+
+
+    for i = 1, numTypes do
+        local active = false
+        if C_Minimap and C_Minimap.GetTrackingInfo then
+            local info = C_Minimap.GetTrackingInfo(i)
+            active = info and info.active
+        elseif GetTrackingInfo then
+            local _, _, isActive = GetTrackingInfo(i)
+            active = isActive
+        end
         if active then
             return true
         end
