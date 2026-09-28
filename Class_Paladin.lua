@@ -9,6 +9,17 @@ local _global  = delphi.pythia.global
 
 
 --==========================================================================
+-- Manual override state, for testing the Auto/Manual/Disabled toggle
+-- concept before any UI exists. Set these with /run commands in-game:
+--   /run delphi.override.seal = 0                      -- Auto (role/branch default)
+--   /run delphi.override.seal = "Seal of Command"       -- Manual (cast this instead)
+--   /run delphi.override.seal = false                   -- Disabled (cast nothing here)
+--==========================================================================
+delphi.override = delphi.override or {}
+delphi.override.seal = delphi.override.seal or 0
+
+
+--==========================================================================
 -- WoW: Forever Paladin spell list, Level 1-60
 -- Source: talentsforever.com/paladin (beta client, Level 60, no gear)
 --==========================================================================
@@ -121,6 +132,23 @@ local function GetPaladinSpec()
 
     else
         return 0
+    end
+end
+
+
+--==========================================================================
+-- Override resolver - three states:
+--   0 (or nil)     -> Auto: use whatever default the caller passes in
+--   false          -> Disabled: caller must skip casting this slot entirely
+--   anything else  -> Manual: use this exact value
+--==========================================================================
+function ResolveOverride(manual_value, auto_default)
+    if manual_value == false then
+        return false
+    elseif manual_value and manual_value ~= 0 then
+        return manual_value
+    else
+        return auto_default
     end
 end
 
@@ -357,11 +385,14 @@ function _paladin.CoreLogic()
         elseif dps_on then
 
 
+            local seal = ResolveOverride(delphi.override.seal, _spell.seal_of_the_crusader)
+
+
             if 1 == 0 then
 
 
-            elseif CastSpellUnits(
-                _spell.seal_of_the_crusader
+            elseif seal and CastSpellUnits(
+                seal
                 ,_unitids.player
                 ,true
                 ,{
@@ -369,7 +400,7 @@ function _paladin.CoreLogic()
                     ,SpellUnit_MyBuffExpired
                 }
             ) then
-                --print("Seal of the Crusader")
+                --print("Seal: "..tostring(seal))
 
 
             elseif CastSpellUnits(
