@@ -554,6 +554,10 @@ function _paladin.CoreLogic()
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
 
+                elseif UnitAliveAndHostile("target") then
+                    _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
+                    acted = true
+
                 elseif aura and CastSpellUnits(
                     aura
                     ,_unitids.player
@@ -601,6 +605,10 @@ function _paladin.CoreLogic()
                 -- PVE / DD / Off Tank
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
+
+                elseif UnitAliveAndHostile("target") then
+                    _global.SetSpellUnit(OFF_TANK_ACTION, "target")
+                    acted = true
 
                 elseif aura and CastSpellUnits(
                     aura
@@ -767,6 +775,10 @@ function _paladin.CoreLogic()
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
 
+                elseif UnitAliveAndHostile("target") then
+                    _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
+                    acted = true
+
                 elseif aura and CastSpellUnits(
                     aura
                     ,_unitids.player
@@ -814,6 +826,10 @@ function _paladin.CoreLogic()
                 -- PVE / AOE / Off Tank
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
+
+                elseif UnitAliveAndHostile("target") then
+                    _global.SetSpellUnit(OFF_TANK_ACTION, "target")
+                    acted = true
 
                 elseif aura and CastSpellUnits(
                     aura
@@ -979,6 +995,10 @@ function _paladin.CoreLogic()
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
 
+                elseif UnitAliveAndHostile("target") then
+                    _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
+                    acted = true
+
                 elseif aura and CastSpellUnits(
                     aura
                     ,_unitids.player
@@ -1142,6 +1162,10 @@ function _paladin.CoreLogic()
                 -- PVP / AOE / Main Tank
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
+
+                elseif UnitAliveAndHostile("target") then
+                    _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
+                    acted = true
 
                 elseif aura and CastSpellUnits(
                     aura
