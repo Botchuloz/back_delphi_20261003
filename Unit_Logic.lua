@@ -148,10 +148,8 @@ end
 
 
 function GodlyIsOff()
-    -- DD/AoE is the encounter mode; All Off is both selections disabled.
-    return delphi.override ~= nil
-        and delphi.override.role == "off"
-        and delphi.override.healing == false
+    local mode = delphi.runtime.profile
+    return mode ~= "dd" and mode ~= "aoe"
 end
 
 function GodlyIsDD()

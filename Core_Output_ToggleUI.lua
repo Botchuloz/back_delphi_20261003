@@ -1,9 +1,12 @@
 --==========================================================================
 -- Core_Output_ToggleUI.lua
--- Draggable mini bar with a shared icon picker. Bar order:
--- handle, Mode, Context, Healing, Role, Aura, Blessing, Seal, Debuff Seal.
--- Mode is DD / AoE / Off. Off is the master stop; switching modes does not
--- change Healing or Role. Aura and Blessing can inherit ForeverBlessings.
+-- Draggable mini bar with a shared icon picker. Bar/summary order:
+-- handle, Mode, Context, Healing, Attack Role, Aura, Blessing, Seal,
+-- Debuff Seal. The picker offers DD / AoE / Off for Mode. Mode is the
+-- master Godly on/off state; Context, Healing, and Attack Role select
+-- branches only. Selecting Off does not erase those other selections.
+-- RedLight()/GodlyIsOff() must honor Mode Off in Unit_Logic.lua.
+-- Aura and Blessing can inherit ForeverBlessings.
 --==========================================================================
 
 delphi.override = delphi.override or {}
@@ -105,6 +108,9 @@ local function PickerButton(i)
         if self.tooltip then
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:AddLine(self.tooltip)
+            if self.description then
+                GameTooltip:AddLine(self.description, 0.82, 0.82, 0.82, true)
+            end
             GameTooltip:Show()
         end
         picker.idle = 0
@@ -136,6 +142,7 @@ local function ShowPicker(cell, choices, on_select)
         b.icon_tex = choice.icon
         b.icon:SetTexture(choice.icon)
         b.tooltip = choice.label
+        b.description = choice.description
         b:ClearAllPoints()
         b:SetPoint("LEFT", picker, "LEFT", 6 + (i - 1) * (CELL + GAP), 0)
         b:Show()
@@ -237,20 +244,29 @@ local CONTEXT_CHOICES = {
     {label="PvP", value="pvp", icon=132486},
 }
 local HEALING_CHOICES = {
-    {label="Healing On", value=true, icon=135920},
-    {label="Healing Off", value=false, icon=DISABLED_ICON},
+    {label="Healing On", value=true, icon=135920,
+        description="Enable healing capabilities. Healing will take precedence over attacking."},
+    {label="Healing Off", value=false, icon=DISABLED_ICON,
+        description="Disable healing capabilities. Healing will not occur."},
 }
 local ROLE_PVE = {
-    {label="Main Tank", value="main_tank", icon=135880},
-    {label="Off Tank", value="off_tank", icon=134952},
-    {label="DPS", value="dps", icon=236304},
-    {label="Role Off", value="off", icon=DISABLED_ICON},
+    {label="Main Tank", value="main_tank", icon=135880,
+        description="Perform main tank attack sequences."},
+    {label="Off Tank", value="off_tank", icon=134952,
+        description="Perform off tank attack sequences."},
+    {label="DPS", value="dps", icon=236304,
+        description="Perform DPS attack sequences."},
+    {label="Role Off", value="off", icon=DISABLED_ICON,
+        description="Disable attack role sequences. Healing remains available if enabled."},
 }
 local ROLE_PVP = {ROLE_PVE[1], ROLE_PVE[3], ROLE_PVE[4]}
 local MODE_CHOICES = {
-    {label="DD", value="dd", icon=589068},
-    {label="AoE", value="aoe", icon=236303},
-    {label="Off", value="off", icon=DISABLED_ICON},
+    {label="DD", value="dd", icon=589068,
+        description="Enable Godly in single-target mode."},
+    {label="AoE", value="aoe", icon=236303,
+        description="Enable Godly in area-of-effect mode."},
+    {label="Off", value="off", icon=DISABLED_ICON,
+        description="Turn Godly off without changing Healing or Attack Role selections."},
 }
 
 local function RoleChoices()
@@ -323,7 +339,7 @@ local function CreateMini()
             end
         end)
     local healing = AddOverrideSlot(mini, context, "healing", "Healing", HEALING_CHOICES)
-    local role = AddOverrideSlot(mini, healing, "role", "Role", RoleChoices)
+    local role = AddOverrideSlot(mini, healing, "role", "Attack Role", RoleChoices)
     local aura = AddOverrideSlot(mini, role, "aura", "Aura", {
         {label = "Auto", value = 0, icon = AUTO_ICON},
         {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
@@ -365,10 +381,10 @@ local function CreateMini()
         blessing:Sync()
         seal:Sync()
         debuffseal:Sync()
-        self.summary:SetText(tostring(delphi.override.context) .. " | "
-            .. tostring(current) .. " | Heal "
+        self.summary:SetText(tostring(current) .. " | "
+            .. tostring(delphi.override.context) .. " | Heal "
             .. (delphi.override.healing == false and "Off" or "On")
-            .. " | " .. tostring(delphi.override.role))
+            .. " | Attack Role " .. tostring(delphi.override.role))
     end)
     mini:Show()
 end
