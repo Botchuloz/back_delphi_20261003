@@ -2,6 +2,8 @@ _unit = delphi.unit
 _event = delphi.event
 _player = delphi.player
 
+local print = DelphiPrint
+
 -- /run print(UnitIsDeadOrGhost("target"))
 function SpellUnit_UnitIsDeadOrGhost(spell,unit)
     return UnitIsDeadOrGhost(unit)

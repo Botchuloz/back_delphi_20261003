@@ -1,3 +1,4 @@
+local print = DelphiPrint
 --/run print(GetActiveSpecGroup()) -- while in shadow(3) this returned a 1, nfi
 --/run print(GetSpecialization()) -- 3 = shadow
 --/run print(GetSpecializationRole(3)) -- returns "DAMAGER" / ? "HEALER" / ? "TANKER"

@@ -19,6 +19,7 @@ if delphi.override.healing == nil then delphi.override.healing = true end
 delphi.db = delphi.db or {}
 delphi.db.ui = delphi.db.ui or {}
 
+local print = DelphiPrint
 local FLAT = "Interface\\Buttons\\WHITE8x8"
 local AUTO_ICON = 136243 -- Trade_Engineering
 local DISABLED_ICON = "Interface\\RaidFrame\\ReadyCheck-NotReady"

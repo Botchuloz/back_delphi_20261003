@@ -1,5 +1,8 @@
 _global  = delphi.pythia.global
 
+local print = DelphiPrint
+
+
 function CheckLogicDelegates(spell,unit,delegates)
     if delegates == nil then
         return true

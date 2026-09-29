@@ -1,3 +1,4 @@
+local print = DelphiPrint
 local function RuneCount()
     local numReady = 0;
     for runeSlot=1,6 do

@@ -1,3 +1,5 @@
+local print = DelphiPrint
+
 print("hi")
 
 --/run print(RankUnits_BrezTargets("","player"))

@@ -1,3 +1,4 @@
+local print = DelphiPrint
 
 --local unit_health,unit_health_perc,unit_health_max,unit_health_deficit = UnitHealthInfo(unit)
 function UnitHealthInfo(unit)

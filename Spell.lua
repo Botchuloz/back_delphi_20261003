@@ -1,4 +1,5 @@
 local _spell = delphi.spell
+local print = DelphiPrint
 
 local spell_meta = {__index = function(t,spell) 
     local metric_data = {}

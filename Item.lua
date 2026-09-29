@@ -1,3 +1,5 @@
+local print = DelphiPrint
+
 function ItemCooldownRemaining(slotNo)
     local cd_started, cd_duration, item_has_on_use = GetInventoryItemCooldown("player",slotNo)
     if(item_has_on_use ~= 1)then

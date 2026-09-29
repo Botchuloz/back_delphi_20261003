@@ -4,6 +4,8 @@ local blacklist = {}
 
 local latency_est = 0.5
 
+local print = DelphiPrint
+
 -- -- --[[test variables / mocked fns]]
 -- -- _now = 12345
 -- -- delphi.player = {}

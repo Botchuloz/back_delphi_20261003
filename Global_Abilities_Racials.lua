@@ -1,6 +1,7 @@
 delphi.racial = {}
 delphi.profession = {}
 
+local print = DelphiPrint
 local function SpellKnownByID(spellID)
     if C_SpellBook and C_SpellBook.IsSpellKnown then
         return C_SpellBook.IsSpellKnown(spellID)

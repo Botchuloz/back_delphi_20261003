@@ -1,3 +1,4 @@
+local print = DelphiPrint
 --name, instanceType, difficultyID, difficultyName, maxPlayers, dynamicDifficulty, isDynamic, instanceID, instanceGroupSize, LfgDungeonID = GetInstanceInfo()
 
 function pvp_zone_or_pvp_target()

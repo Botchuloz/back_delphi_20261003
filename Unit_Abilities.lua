@@ -1,3 +1,5 @@
+local print = DelphiPrint
+
 function RemainingCooldown(spell)
     if not spell then
         --print("Error: 'spell' parameter is nil.")

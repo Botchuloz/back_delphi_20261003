@@ -2,7 +2,7 @@ local _register        = {}
 local _lasterror       = {}
 local _lastcast        = {}
 local _track_aura      = delphi.track_aura
-
+local print = DelphiPrint
 
 
 

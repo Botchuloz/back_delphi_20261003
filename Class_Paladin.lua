@@ -1,3 +1,4 @@
+local print = DelphiPrint
 local _paladin  = {}
 local _spell    = {}
 

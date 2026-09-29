@@ -3,6 +3,7 @@ local initialise = 0
 local godly_tick = 0
 local _event = delphi.event.register
 local _class  = delphi.class
+local print = DelphiPrint
 
 function GodlyCore()
     UpdateStatusIcons()

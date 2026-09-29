@@ -7,6 +7,8 @@
 ## SavedVariables: DelphiDB
 
 # Utility functions with no external dependencies
+Core_Output_DelphiChat.lua
+
 Table.lua
 
 Global_Tables.lua

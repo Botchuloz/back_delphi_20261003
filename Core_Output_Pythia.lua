@@ -8,6 +8,7 @@
  █████           █████       █████    █████   █████ █████ █████   █████
 ░░░░░           ░░░░░       ░░░░░    ░░░░░   ░░░░░ ░░░░░ ░░░░░   ░░░░░    
 --]]
+local print = DelphiPrint
 local _global_pythia             = delphi.pythia
 local _spellunit_to_keycombo    = delphi.bind.spellunit_to_keycombo
 local _spellunit_key            = delphi.keycombo.key_ascii

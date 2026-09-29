@@ -1,3 +1,4 @@
+local print = DelphiPrint
 local _icons = {}
 
 function CreateNewStatusIcon(icon_name,x,y,delegate)

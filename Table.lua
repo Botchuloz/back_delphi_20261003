@@ -1,3 +1,5 @@
+local print = DelphiPrint
+
 function update_table(dict_of_dicts,row,col,value)
     if type(dict_of_dicts) ~= "table" then
         dict_of_dicts = {}

@@ -10,6 +10,8 @@
                                                                         
 --]]
 
+local print = DelphiPrint
+
 --raw keybinds available to godly
 local _bindable_keys   = delphi.keyboard.key_ascii
 local _bindable_mods   = delphi.keyboard.mod_ascii
