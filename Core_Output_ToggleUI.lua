@@ -15,7 +15,7 @@ if delphi.override.role == "dps_dd" or delphi.override.role == "dps_aoe" then
     delphi.override.role = "dps"
 end
 if delphi.override.role == nil then delphi.override.role = "dps" end
-if delphi.override.healing == nil then delphi.override.healing = true end
+if delphi.override.healing == nil then delphi.override.healing = false end
 delphi.db = delphi.db or {}
 delphi.db.ui = delphi.db.ui or {}
 
