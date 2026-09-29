@@ -589,6 +589,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -636,6 +637,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -673,6 +675,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -735,6 +738,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -798,6 +802,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -845,6 +850,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -882,6 +888,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -944,6 +951,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1006,6 +1014,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1042,6 +1051,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1105,6 +1115,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1167,6 +1178,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1204,6 +1216,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1267,6 +1280,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(blessing) < 0.5
                         and EnoughManaForSpell(blessing)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
