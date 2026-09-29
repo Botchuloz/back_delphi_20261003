@@ -532,6 +532,7 @@ function _paladin.CoreLogic()
         ,_unitids.player
         ,RemainingCooldown(tracking_spell) < 0.5
             and EnoughManaForSpell(tracking_spell)
+            and not combat
         ,{ SpellUnit_AliveAndFriendly }
     ) then
         -- No relevant tracking selected: cast the first known default.
