@@ -104,6 +104,14 @@ _spell.greater_blessing_of_might = "Greater Blessing of Might" --Reworked
 --Retribution - talents
 _spell.repentance           = "Repentance" --TALENT
 
+local DPS_SEQUENCE_ACTION = "DelphiDPSSequence"
+
+local DPS_SEQUENCE_MACRO = [[
+/startattack
+/castsequence [@target,harm] reset=target Seal of the Crusader,judgement,Seal of Command,null
+/castsequence [@target,harm] Holy Strike
+/castsequence [@target,harm] judgement
+]]
 
 local holy_spec = 1
 local prot_spec = 2
@@ -333,12 +341,12 @@ function _paladin.SetBinds()
     BindSpellToUnit("start_attack","","","/startattack",true)
     -- Role and Healing are selected in the Delphi toggle UI.
 
-
     --Seals - player only
     BindSpellToUnits(_spell.seal_of_righteousness, _unitids.player)
     BindSpellToUnits(_spell.seal_of_command,       _unitids.player)
     BindSpellToUnits(_spell.seal_of_the_crusader,  _unitids.player)
     BindSpellToUnits(_spell.seal_of_fury,          _unitids.player)
+    BindSpellToUnit(    DPS_SEQUENCE_ACTION,    "target",    DPS_SEQUENCE_MACRO,    "",    1)
 
 
     --Auras and self-blessings - player only
