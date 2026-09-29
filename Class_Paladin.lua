@@ -504,6 +504,44 @@ local function RoleOverrides(role, context)
         ResolveOverride(delphi.override.debuffseal, auto_debuffseal)
 end
 
+local perception_requested = false
+local last_perception_signal
+
+local function OnSpyGodModeDetected(_, _, isStealth)
+    if not isStealth then
+        return
+    end
+
+    local now = GetTime()
+    if last_perception_signal and now - last_perception_signal < 2 then
+        return
+    end
+
+    -- SpyGodMode can report both spell start and success for one stealth cast.
+    last_perception_signal = now
+    perception_requested = true
+end
+
+local function AttachSpyGodMode()
+    local spy = _G.SpyGodMode
+    if type(spy) ~= "table" or type(spy.On) ~= "function" then
+        return false
+    end
+
+    spy:On("SGM_DETECTED", OnSpyGodModeDetected)
+    return true
+end
+
+if not AttachSpyGodMode() then
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent("ADDON_LOADED")
+    frame:SetScript("OnEvent", function(self)
+        if AttachSpyGodMode() then
+            self:UnregisterEvent("ADDON_LOADED")
+        end
+    end)
+end
+
 -- Seal maintenance is combat-only: enabling Godly out of combat must not
 -- trigger a Seal. Existing cooldown, secret-safe usability and buff gates
 -- remain in every Seal cast branch.
@@ -519,14 +557,15 @@ function _paladin.CoreLogic()
         _global.Off()
     elseif role == "off" and not healing_on then
         _global.Off()
-    -- elseif delphi.racial.perception and CastSpellUnits(
-    --     delphi.racial.perception
-    --     ,_unitids.player
-    --     ,RemainingCooldown(delphi.racial.perception) < 0.5
-    --         and EnoughManaForSpell(delphi.racial.perception)
-    --     ,{ SpellUnit_AliveAndFriendly }
-    -- ) then
-    --     -- Existing Perception placeholder; stealth detection not wired.
+    elseif perception_requested and delphi.racial.perception
+        and CastSpellUnits(
+            delphi.racial.perception
+            ,_unitids.player
+            ,RemainingCooldown(delphi.racial.perception) < 0.5
+                and EnoughManaForSpell(delphi.racial.perception)
+            ,{ SpellUnit_AliveAndFriendly }
+        ) then
+        perception_requested = false
     elseif tracking_spell and not TrackingSelectedOrUnknown() and CastSpellUnits(
         tracking_spell
         ,_unitids.player
