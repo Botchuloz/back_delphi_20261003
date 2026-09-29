@@ -651,28 +651,33 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Plain Judgement retained; selected debuffseal's matching
-                -- target-effect maintenance remains deferred.
-                elseif _spell.judgement and CastSpellUnits(
-                    _spell.judgement
-                    ,_unitids.standard_hostile
-                    ,RemainingCooldown(_spell.judgement) < 0.5
-                        and EnoughManaForSpell(_spell.judgement)
-                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
-                ) then
+                elseif UnitAliveAndHostile("target") then
+                    _global.SetSpellUnit("DelphiDPSSequence", "target")
                     acted = true
+                end  -- closes the PVP / DD / DPS action chain
 
-                elseif _spell.holy_strike and CastSpellUnits(
-                    _spell.holy_strike
-                    ,_unitids.standard_hostile
-                    ,RemainingCooldown(_spell.holy_strike) < 0.5
-                        and EnoughManaForSpell(_spell.holy_strike)
-                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
-                ) then
-                    acted = true
-                end
-                -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- -- Plain Judgement retained; selected debuffseal's matching
+                -- -- target-effect maintenance remains deferred.
+                -- elseif _spell.judgement and CastSpellUnits(
+                --     _spell.judgement
+                --     ,_unitids.standard_hostile
+                --     ,RemainingCooldown(_spell.judgement) < 0.5
+                --         and EnoughManaForSpell(_spell.judgement)
+                --     ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                -- ) then
+                --     acted = true
+
+                -- elseif _spell.holy_strike and CastSpellUnits(
+                --     _spell.holy_strike
+                --     ,_unitids.standard_hostile
+                --     ,RemainingCooldown(_spell.holy_strike) < 0.5
+                --         and EnoughManaForSpell(_spell.holy_strike)
+                --     ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                -- ) then
+                --     acted = true
+                -- end
+                -- -- debuffseal is resolved for this role; the Judgement-of-X
+                -- -- target-debuff logic is intentionally not implemented here.
 
             elseif role == "off" then
                 -- PVE / DD / Healing-only
@@ -842,28 +847,33 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Plain Judgement retained; selected debuffseal's matching
-                -- target-effect maintenance remains deferred.
-                elseif _spell.judgement and CastSpellUnits(
-                    _spell.judgement
-                    ,_unitids.standard_hostile
-                    ,RemainingCooldown(_spell.judgement) < 0.5
-                        and EnoughManaForSpell(_spell.judgement)
-                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
-                ) then
+                elseif UnitAliveAndHostile("target") then
+                    _global.SetSpellUnit("DelphiDPSSequence", "target")
                     acted = true
+                end  -- closes the PVP / DD / DPS action chain
 
-                elseif _spell.holy_strike and CastSpellUnits(
-                    _spell.holy_strike
-                    ,_unitids.standard_hostile
-                    ,RemainingCooldown(_spell.holy_strike) < 0.5
-                        and EnoughManaForSpell(_spell.holy_strike)
-                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
-                ) then
-                    acted = true
-                end
-                -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- -- Plain Judgement retained; selected debuffseal's matching
+                -- -- target-effect maintenance remains deferred.
+                -- elseif _spell.judgement and CastSpellUnits(
+                --     _spell.judgement
+                --     ,_unitids.standard_hostile
+                --     ,RemainingCooldown(_spell.judgement) < 0.5
+                --         and EnoughManaForSpell(_spell.judgement)
+                --     ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                -- ) then
+                --     acted = true
+
+                -- elseif _spell.holy_strike and CastSpellUnits(
+                --     _spell.holy_strike
+                --     ,_unitids.standard_hostile
+                --     ,RemainingCooldown(_spell.holy_strike) < 0.5
+                --         and EnoughManaForSpell(_spell.holy_strike)
+                --     ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                -- ) then
+                --     acted = true
+                -- end
+                -- -- debuffseal is resolved for this role; the Judgement-of-X
+                -- -- target-debuff logic is intentionally not implemented here.
 
             elseif role == "off" then
                 -- PVE / AOE / Healing-only
@@ -1142,28 +1152,34 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Plain Judgement retained; selected debuffseal's matching
-                -- target-effect maintenance remains deferred.
-                elseif _spell.judgement and CastSpellUnits(
-                    _spell.judgement
-                    ,_unitids.standard_hostile
-                    ,RemainingCooldown(_spell.judgement) < 0.5
-                        and EnoughManaForSpell(_spell.judgement)
-                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
-                ) then
-                    acted = true
 
-                elseif _spell.holy_strike and CastSpellUnits(
-                    _spell.holy_strike
-                    ,_unitids.standard_hostile
-                    ,RemainingCooldown(_spell.holy_strike) < 0.5
-                        and EnoughManaForSpell(_spell.holy_strike)
-                    ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
-                ) then
+                elseif UnitAliveAndHostile("target") then
+                    _global.SetSpellUnit("DelphiDPSSequence", "target")
                     acted = true
-                end
-                -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                end  -- closes the PVP / DD / DPS action chain
+
+                -- -- Plain Judgement retained; selected debuffseal's matching
+                -- -- target-effect maintenance remains deferred.
+                -- elseif _spell.judgement and CastSpellUnits(
+                --     _spell.judgement
+                --     ,_unitids.standard_hostile
+                --     ,RemainingCooldown(_spell.judgement) < 0.5
+                --         and EnoughManaForSpell(_spell.judgement)
+                --     ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                -- ) then
+                --     acted = true
+
+                -- elseif _spell.holy_strike and CastSpellUnits(
+                --     _spell.holy_strike
+                --     ,_unitids.standard_hostile
+                --     ,RemainingCooldown(_spell.holy_strike) < 0.5
+                --         and EnoughManaForSpell(_spell.holy_strike)
+                --     ,{ SpellUnit_UnitAliveAndHostile, SpellUnit_RangeCheck, SpellUnit_ValidHarm }
+                -- ) then
+                --     acted = true
+                -- end
+                -- -- debuffseal is resolved for this role; the Judgement-of-X
+                -- -- target-debuff logic is intentionally not implemented here.
 
             elseif role == "off" then
                 -- PVP / AOE / Healing-only
