@@ -471,6 +471,9 @@ local function RoleOverrides(role, context)
         ResolveOverride(delphi.override.debuffseal, auto_debuffseal)
 end
 
+-- Seal maintenance is combat-only: enabling Godly out of combat must not
+-- trigger a Seal. Existing cooldown, secret-safe usability and buff gates
+-- remain in every Seal cast branch.
 function _paladin.CoreLogic()
     local context = delphi.override.context or "pve"
     local role = delphi.override.role or "dps"
@@ -533,7 +536,16 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif _spell.righteous_fury and CastSpellUnits(
+                    _spell.righteous_fury
+                    ,_unitids.player
+                    ,RemainingCooldown(_spell.righteous_fury) < 0.5
+                        and EnoughManaForSpell(_spell.righteous_fury)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true    
+
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -568,7 +580,16 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif _spell.righteous_fury and CastSpellUnits(
+                    _spell.righteous_fury
+                    ,_unitids.player
+                    ,RemainingCooldown(_spell.righteous_fury) < 0.5
+                        and EnoughManaForSpell(_spell.righteous_fury)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true    
+
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -603,7 +624,7 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -658,7 +679,7 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -706,7 +727,16 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif _spell.righteous_fury and CastSpellUnits(
+                    _spell.righteous_fury
+                    ,_unitids.player
+                    ,RemainingCooldown(_spell.righteous_fury) < 0.5
+                        and EnoughManaForSpell(_spell.righteous_fury)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true    
+
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -741,7 +771,16 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif _spell.righteous_fury and CastSpellUnits(
+                    _spell.righteous_fury
+                    ,_unitids.player
+                    ,RemainingCooldown(_spell.righteous_fury) < 0.5
+                        and EnoughManaForSpell(_spell.righteous_fury)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true    
+                  
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -776,7 +815,7 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -831,7 +870,7 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -879,7 +918,16 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif _spell.righteous_fury and CastSpellUnits(
+                    _spell.righteous_fury
+                    ,_unitids.player
+                    ,RemainingCooldown(_spell.righteous_fury) < 0.5
+                        and EnoughManaForSpell(_spell.righteous_fury)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true    
+
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -914,7 +962,7 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -969,7 +1017,7 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -1017,7 +1065,16 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif _spell.righteous_fury and CastSpellUnits(
+                    _spell.righteous_fury
+                    ,_unitids.player
+                    ,RemainingCooldown(_spell.righteous_fury) < 0.5
+                        and EnoughManaForSpell(_spell.righteous_fury)
+                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
+                ) then
+                    acted = true    
+
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -1052,7 +1109,7 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -1107,7 +1164,7 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and CastSpellUnits(
+                elseif seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
