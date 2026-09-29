@@ -255,83 +255,71 @@ end
 
 
 --==========================================================================
--- KNOWN ISSUE (unresolved): SpellUnit_AnyTrackingActive(), which used
--- C_Minimap.GetNumTrackingTypes()/GetTrackingInfo() to detect whether ANY
--- minimap tracking type was active, was found in testing to return true
--- unconditionally on WoWF - some entry in that list reports "active" even
--- when it isn't a real player-selected tracking type. Root cause not yet
--- identified; needs an in-game dump of
--- "for i=1,C_Minimap.GetNumTrackingTypes() do local info=C_Minimap.GetTrackingInfo(i) print(i,info.name,info.active) end"
--- to find the false positive before this can be trusted again. Left in
--- place for reference/future fix, but no longer called - see
--- SpellUnit_ShouldSkipTrackingCast() below, which uses direct buff checks
--- (confirmed via Wowhead that both Find Minerals and Sense Undead grant a
--- real, permanent-duration buff matching the spell name) instead.
---==========================================================================
-function SpellUnit_AnyTrackingActive()
-    local numTypes = 0
-    if C_Minimap and C_Minimap.GetNumTrackingTypes then
-        numTypes = C_Minimap.GetNumTrackingTypes()
-    elseif GetNumTrackingTypes then
-        numTypes = GetNumTrackingTypes()
+-- Automatic minimap tracking: preserve a manual Find Herbs, Find Minerals, or
+-- Sense Undead selection. An older "any active tracking" check gave false
+-- positives on WoWF, and checking player auras did not detect Find Herbs.
+-- The player verified that GetTrackingInfo() reports the three named entries
+-- with an active flag; only those names count here. If the state cannot be
+-- read, do not cast another tracking spell over a manual choice.
+local TRACKING_NAMES = {
+    ["Find Minerals"] = true,
+    ["Find Herbs"] = true,
+    ["Sense Undead"] = true,
+}
+
+local function TrackingSelectedOrUnknown()
+    if not (C_Minimap and C_Minimap.GetNumTrackingTypes
+        and C_Minimap.GetTrackingInfo) then
+        return true
     end
-
-
-    for i = 1, numTypes do
-        local active = false
-        if C_Minimap and C_Minimap.GetTrackingInfo then
+    local ok, selected = pcall(function()
+        local count = C_Minimap.GetNumTrackingTypes()
+        if type(count) ~= "number" then return true end
+        for i = 1, count do
             local info = C_Minimap.GetTrackingInfo(i)
-            active = info and info.active
-        elseif GetTrackingInfo then
-            local _, _, isActive = GetTrackingInfo(i)
-            active = isActive
+            if type(info) ~= "table" then return true end
+            if TRACKING_NAMES[info.name] and info.active then
+                return true
+            end
         end
-        if active then
-            return true
-        end
-    end
-    return false
+        return false
+    end)
+    return not ok or selected
 end
 
-
--- Known minimap-tracking buffs that compete for WoW's single-tracking-slot
--- ("Only one form of tracking can be active at a time"). Populated lazily
--- since delphi.profession.* isn't known until after
--- DetectRacialAndProfessionAbilities() has run.
-local function KnownTrackingBuffs()
-    local buffs = { [_spell.sense_undead] = true }
-    if delphi.profession.findminerals then
-        buffs[delphi.profession.findminerals] = true
-    end
-    if delphi.profession.findherbs then
-        buffs[delphi.profession.findherbs] = true
-    end
-    return buffs
+-- Query the spellbook at cast time, not the cached profession table: a
+-- newly learned profession may not have been detected at addon load time.
+local function KnownTrackingSpellID(spellID)
+    if not (C_SpellBook and C_SpellBook.IsSpellKnown) then return nil end
+    local ok, known = pcall(function()
+        return C_SpellBook.IsSpellKnown(spellID) == true
+    end)
+    if not ok then return nil end
+    return known
 end
 
+-- Choose one preferred default. A temporarily unusable Minerals cast must
+-- not cause Herbs to be selected instead. Name lookup for Sense Undead
+-- avoids assuming its spell ID in WoWF; spellInfo.spellID is documented.
+local function PreferredTrackingSpell()
+    local minerals = KnownTrackingSpellID(2580)
+    if minerals == nil then return nil end
+    if minerals then return "Find Minerals" end
 
--- Returns true if casting `spell` on `unit` should be skipped: either the
--- spell's own buff is already active (avoids respamming a permanent-duration
--- tracking buff every tick), or a different known tracking buff is already
--- active and should not be clobbered (e.g. don't override a manually-cast
--- Sense Undead with an auto-cast Find Minerals).
-function SpellUnit_ShouldSkipTrackingCast(spell, unit)
-    local known = KnownTrackingBuffs()
-    for i = 1, 40 do
-        local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
-        if not aura then
-            break
-        end
-        if aura.name == spell then
-            return true
-        end
-        if known[aura.name] then
-            return true
-        end
+    local herbs = KnownTrackingSpellID(2383)
+    if herbs == nil then return nil end
+    if herbs then return "Find Herbs" end
+
+    if not (C_Spell and C_Spell.GetSpellInfo) then return nil end
+    local ok, info = pcall(C_Spell.GetSpellInfo, _spell.sense_undead)
+    if not ok or type(info) ~= "table" or type(info.spellID) ~= "number" then
+        return nil
     end
-    return false
+    if KnownTrackingSpellID(info.spellID) then
+        return _spell.sense_undead
+    end
+    return nil
 end
-
 
 local bind_once = 0
 function _paladin.SetBinds()
@@ -414,11 +402,11 @@ function _paladin.SetBinds()
     end
 
 
-    --Professions - player only. Sourced from Global_Abilities_Racials.lua,
-    --nil if the profession isn't learned, so this is a no-op if not applicable.
-    if delphi.profession.findminerals then
-        BindSpellToUnits(delphi.profession.findminerals, _unitids.player)
-    end
+    -- Tracking spells are bound once, including spells learned after startup.
+    -- CoreLogic checks which one is actually known before trying to cast it.
+    BindSpellToUnits("Find Minerals", _unitids.player)
+    BindSpellToUnits("Find Herbs", _unitids.player)
+    BindSpellToUnits(_spell.sense_undead, _unitids.player)
 end
 
 
@@ -432,8 +420,8 @@ end
 --   for "first match wins" instead of "best-scoring match wins"
 --   (CheckRankDelegates explicitly rejects a table here).
 --=================================================================
--- Resource checks use the WoWF-tested cost table shape.
--- nil may mean zero cost or unknown: only permit nil for a resolvable spell.
+-- Spell usability is checked without comparing secret mana values.
+-- If the API fails or returns a secret result, do not attempt the cast.
 local function EnoughManaForSpell(spell)
     if not C_Spell or not C_Spell.IsSpellUsable then
         return false
@@ -468,7 +456,7 @@ local function RoleOverrides(role, context)
     elseif role == "off_tank" and context == "pve" then
         auto_seal = _spell.seal_of_righteousness
         auto_debuffseal = _spell.seal_of_the_crusader
-    elseif role == "dps_dd" or role == "dps_aoe" then
+    elseif role == "dps" then
         auto_seal = _spell.seal_of_command
         auto_debuffseal = _spell.seal_of_the_crusader
     elseif role == "off" then
@@ -485,9 +473,10 @@ end
 
 function _paladin.CoreLogic()
     local context = delphi.override.context or "pve"
-    local role = delphi.override.role or "dps_dd"
+    local role = delphi.override.role or "dps"
     local healing_on = delphi.override.healing ~= false
     local combat = CombatStatus()
+    local tracking_spell = not combat and PreferredTrackingSpell() or nil
 
     if 1 == 0 then
     elseif RedLight() then
@@ -502,16 +491,14 @@ function _paladin.CoreLogic()
         ,{ SpellUnit_AliveAndFriendly }
     ) then
         -- Existing Perception placeholder; stealth detection not wired.
-    elseif delphi.profession.findminerals and CastSpellUnits(
-        delphi.profession.findminerals
+    elseif tracking_spell and not TrackingSelectedOrUnknown() and CastSpellUnits(
+        tracking_spell
         ,_unitids.player
-        ,RemainingCooldown(delphi.profession.findminerals) < 0.5
-            and EnoughManaForSpell(delphi.profession.findminerals)
-            and not combat
-            and not SpellUnit_ShouldSkipTrackingCast(delphi.profession.findminerals, "player")
+        ,RemainingCooldown(tracking_spell) < 0.5
+            and EnoughManaForSpell(tracking_spell)
         ,{ SpellUnit_AliveAndFriendly }
     ) then
-        -- Find Minerals.
+        -- No relevant tracking selected: cast the first known default.
     elseif context == "pve" and GodlyIsDD() then
         local acted = false
         if healing_on then
@@ -602,7 +589,7 @@ function _paladin.CoreLogic()
                 -- debuffseal is resolved for this role; the Judgement-of-X
                 -- target-debuff logic is intentionally not implemented here.
 
-            elseif role == "dps_dd" or role == "dps_aoe" then
+            elseif role == "dps" then
                 -- PVE / DD / DPS
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
@@ -775,7 +762,7 @@ function _paladin.CoreLogic()
                 -- debuffseal is resolved for this role; the Judgement-of-X
                 -- target-debuff logic is intentionally not implemented here.
 
-            elseif role == "dps_dd" or role == "dps_aoe" then
+            elseif role == "dps" then
                 -- PVE / AOE / DPS
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
@@ -913,7 +900,7 @@ function _paladin.CoreLogic()
                 -- debuffseal is resolved for this role; the Judgement-of-X
                 -- target-debuff logic is intentionally not implemented here.
 
-            elseif role == "dps_dd" or role == "dps_aoe" then
+            elseif role == "dps" then
                 -- PVP / DD / DPS
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
@@ -1051,7 +1038,7 @@ function _paladin.CoreLogic()
                 -- debuffseal is resolved for this role; the Judgement-of-X
                 -- target-debuff logic is intentionally not implemented here.
 
-            elseif role == "dps_dd" or role == "dps_aoe" then
+            elseif role == "dps" then
                 -- PVP / AOE / DPS
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
