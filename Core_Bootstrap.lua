@@ -22,6 +22,8 @@ function GodlyCore()
         end
     end
 
+    BindRareScannerMacro()
+
     if initialise == 0 then
         print("Free binds: ",FreeBindCount())
         initialise = 1

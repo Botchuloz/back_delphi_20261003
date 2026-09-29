@@ -271,6 +271,90 @@ function GetNextFreeBind(spellunit)
     print("ERROR : NO FREE BINDS LEFT")
 end
 
+local function NormalizeBindingKey(keycombo)
+    local binding = keycombo
+    binding = binding:gsub("LCTRL%-", "CTRL-")
+    binding = binding:gsub("RCTRL%-", "CTRL-")
+    binding = binding:gsub("LSHIFT%-", "SHIFT-")
+    binding = binding:gsub("RSHIFT%-", "SHIFT-")
+    return binding
+end
+
+function BindRareScannerMacro()
+    local state = delphi.bind.rs_macro_binding
+    if state and state.failed then
+        return false
+    end
+
+    if type(InCombatLockdown) ~= "function" or InCombatLockdown() then
+        return false
+    end
+
+    if not C_AddOns or type(C_AddOns.IsAddOnLoaded) ~= "function"
+        or not GetMacroInfo or not GetBindingAction
+        or not SetBindingMacro then
+        delphi.bind.rs_macro_binding = {failed = true}
+        print("RS_MACRO binding unavailable: required WoW APIs are missing")
+        return false
+    end
+
+    local addon_ok, loading_or_loaded, loaded =
+        pcall(C_AddOns.IsAddOnLoaded, "RareScanner")
+    if not addon_ok or loaded ~= true then
+        return false
+    end
+
+    local macro_ok, macro_name = pcall(GetMacroInfo, "RS_MACRO")
+    if not macro_ok or macro_name ~= "RS_MACRO" then
+        return false
+    end
+
+    state = state or {}
+    delphi.bind.rs_macro_binding = state
+    if state.key then
+        return true
+    end
+
+    while true do
+        local keycombo = GetNextFreeBind("RS_MACRO")
+        if not keycombo then
+            state.failed = true
+            print("RS_MACRO binding failed: no free Delphi key is available")
+            return false
+        end
+
+        local binding = NormalizeBindingKey(keycombo)
+        local action_ok, action = pcall(GetBindingAction, binding)
+        local override_ok, override_action =
+            pcall(GetBindingAction, binding, true)
+        if not action_ok or not override_ok then
+            state.failed = true
+            print("RS_MACRO binding failed: unable to check whether a key is occupied")
+            return false
+        end
+
+        if action == "" and override_action == "" then
+            local bind_ok, bound = pcall(SetBindingMacro, binding, "RS_MACRO")
+            if not bind_ok or bound ~= true then
+                state.failed = true
+                print("RS_MACRO binding failed; no existing binding was replaced")
+                return false
+            end
+
+            for combo in pairs(_combo_status) do
+                if NormalizeBindingKey(combo) == binding then
+                    _combo_status[combo] = true
+                end
+            end
+            _spellunit_to_combo_map.RS_MACRO = keycombo
+            state.key = keycombo
+            state.binding = binding
+            print("RS_MACRO assigned to " .. binding)
+            return true
+        end
+    end
+end
+
 function FreeBindCount()
     local free_binds = 0
     for k,v in pairs(_combo_status) do

@@ -55,7 +55,8 @@ function CreatePythia(pythia_name,x,y,size)
                 if spell ~= "DelphiDPSSequence"
                     and spell ~= "DelphiHealMacro"
                     and spell ~= "DelphiMainTankMacro"
-                    and spell ~= "DelphiOffTankMacro" then
+                    and spell ~= "DelphiOffTankMacro"
+                    and spell ~= "RS_MACRO" then
                     GreenlistSpellUnit(spell, unit)
                 end
                 _pythia.colour:SetColorTexture (_safetycheck/255.0,mods/255.0,key/255.0)

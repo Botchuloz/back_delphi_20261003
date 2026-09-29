@@ -509,6 +509,16 @@ local function MacroInRange(spell, unit)
     return ok and in_range == true
 end
 
+local function OfferRareScannerMacro(combat)
+    local binding = delphi.bind.rs_macro_binding
+    if combat or RedLight() or not (binding and binding.key) then
+        _global.Off()
+        return
+    end
+
+    _global.SetSpellUnit("RS_MACRO")
+end
+
 local perception_requested = false
 local last_perception_signal
 
@@ -561,7 +571,7 @@ function _paladin.CoreLogic()
     elseif RedLight() then
         _global.Off()
     elseif role == "off" and not healing_on then
-        _global.Off()
+        OfferRareScannerMacro(combat)
     elseif perception_requested and delphi.racial.perception
         and CastSpellUnits(
             delphi.racial.perception
@@ -803,7 +813,7 @@ function _paladin.CoreLogic()
                 -- target-debuff logic is intentionally not implemented here.
             end
         end
-        if not acted then _global.Off() end
+        if not acted then OfferRareScannerMacro(combat) end
     elseif context == "pve" and GodlyIsAOE() then
         local acted = false
         if healing_on then
@@ -1027,7 +1037,7 @@ function _paladin.CoreLogic()
                 -- target-debuff logic is intentionally not implemented here.
             end
         end
-        if not acted then _global.Off() end
+        if not acted then OfferRareScannerMacro(combat) end
     elseif context == "pvp" and GodlyIsDD() then
         local acted = false
         if healing_on then
@@ -1197,7 +1207,7 @@ function _paladin.CoreLogic()
                 -- target-debuff logic is intentionally not implemented here.
             end
         end
-        if not acted then _global.Off() end
+        if not acted then OfferRareScannerMacro(combat) end
     elseif context == "pvp" and GodlyIsAOE() then
         local acted = false
         if healing_on then
@@ -1368,7 +1378,7 @@ function _paladin.CoreLogic()
                 -- target-debuff logic is intentionally not implemented here.
             end
         end
-        if not acted then _global.Off() end
+        if not acted then OfferRareScannerMacro(combat) end
     else
         _global.Off()
     end
