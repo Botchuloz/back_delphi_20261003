@@ -1,0 +1,3 @@
+check moving, for healing
+
+check time in combat, for holy wrath
