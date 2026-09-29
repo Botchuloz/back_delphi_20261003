@@ -33,6 +33,31 @@ function DelphiPrint(...)
 end
 
 
+-- Keep this saved chat window for Delphi output only. Message groups include
+-- built-in chat/system/guild notices; channels include joined world channels.
+-- Remove them only from the Delphi frame, never from General or other frames.
+local function RemoveNonDelphiSubscriptions(frame)
+    local id = frame:GetID()
+    if not id then return end
+
+    if GetChatWindowMessages and RemoveChatWindowMessages then
+        local groups = { GetChatWindowMessages(id) }
+        for _, group in ipairs(groups) do
+            RemoveChatWindowMessages(id, group)
+        end
+    end
+
+    if GetChatWindowChannels and RemoveChatWindowChannel then
+        local channels = { GetChatWindowChannels(id) }
+        for i = 1, #channels, 2 do
+            if channels[i] then
+                RemoveChatWindowChannel(id, channels[i])
+            end
+        end
+    end
+end
+
+
 local function OpenDelphiChat()
     delphiChat = FindDelphiChat()
 
@@ -43,18 +68,20 @@ local function OpenDelphiChat()
         end
     end
 
-    -- Set the Delphi chat frame's scrollback before writing queued messages.
-    -- Avoid resetting the frame on later reloads if it is already large enough.
-    if delphiChat and delphiChat.SetMaxLines then
-        local current = delphiChat.GetMaxLines
-            and delphiChat:GetMaxLines()
-
-        if not current or current < 5000 then
-            delphiChat:SetMaxLines(5000)
-        end
-    end
-
     if delphiChat then
+        RemoveNonDelphiSubscriptions(delphiChat)
+
+        -- Set scrollback before writing queued messages. Avoid resetting
+        -- the frame if it already has a limit of at least 5,000 lines.
+        if delphiChat.SetMaxLines then
+            local current = delphiChat.GetMaxLines
+                and delphiChat:GetMaxLines()
+
+            if not current or current < 5000 then
+                delphiChat:SetMaxLines(5000)
+            end
+        end
+
         for _, message in ipairs(pending) do
             delphiChat:AddMessage(message)
         end
