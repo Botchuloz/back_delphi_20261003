@@ -522,6 +522,16 @@ end
 local perception_requested = false
 local last_perception_signal
 
+local perception_cast_frame = CreateFrame("Frame")
+perception_cast_frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+perception_cast_frame:SetScript("OnEvent", function(_, _, unit, _, spellID)
+    if unit == "player"
+        and not (issecretvalue and issecretvalue(spellID))
+        and spellID == 20600 then
+        perception_requested = false
+    end
+end)
+
 local function OnSpyGodModeDetected(_, _, isStealth)
     if not isStealth then
         return
@@ -570,8 +580,6 @@ function _paladin.CoreLogic()
     if 1 == 0 then
     elseif RedLight() then
         _global.Off()
-    elseif role == "off" and not healing_on then
-        OfferRareScannerMacro(combat)
     elseif perception_requested and delphi.racial.perception
         and CastSpellUnits(
             delphi.racial.perception
@@ -580,7 +588,9 @@ function _paladin.CoreLogic()
                 and EnoughManaForSpell(delphi.racial.perception)
             ,{ SpellUnit_AliveAndFriendly }
         ) then
-        perception_requested = false
+        -- Keep recommending until the player successfully casts Perception.
+    elseif role == "off" and not healing_on then
+        OfferRareScannerMacro(combat)
     elseif tracking_spell and not TrackingSelectedOrUnknown() and CastSpellUnits(
         tracking_spell
         ,_unitids.player
