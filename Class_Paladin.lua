@@ -574,7 +574,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -620,7 +621,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -656,7 +658,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -717,7 +720,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -779,7 +783,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -825,7 +830,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
                   
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -861,7 +867,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -922,7 +929,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -983,7 +991,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -1081,7 +1090,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -1142,7 +1152,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -1178,7 +1189,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
@@ -1240,7 +1252,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif seal and combat and CastSpellUnits(
+                -- Disabled for now; left in place for easy re-enabling.
+                elseif false and seal and combat and CastSpellUnits(
                     seal
                     ,_unitids.player
                     ,RemainingCooldown(seal) < 0.5
