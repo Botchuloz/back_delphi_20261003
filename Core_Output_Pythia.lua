@@ -50,7 +50,11 @@ function CreatePythia(pythia_name,x,y,size)
                     _pythia.last_spellunit = spellunit
                     --print(_pythia.last_spellunit)
                 end
-                GreenlistSpellUnit(spell,unit)
+                -- This bound action is a macro identifier, not a spell name.
+                -- GreenlistSpellUnit requires C_Spell.GetSpellInfo(spell).
+                if spell ~= "DelphiDPSSequence" then
+                    GreenlistSpellUnit(spell, unit)
+                end
                 _pythia.colour:SetColorTexture (_safetycheck/255.0,mods/255.0,key/255.0)
                 --print("Set the pythia by spellunit")
             end
