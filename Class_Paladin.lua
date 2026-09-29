@@ -105,12 +105,34 @@ _spell.greater_blessing_of_might = "Greater Blessing of Might" --Reworked
 _spell.repentance           = "Repentance" --TALENT
 
 local DPS_SEQUENCE_ACTION = "DelphiDPSSequence"
+local HEAL_ACTION = "DelphiHealMacro"
+local MAIN_TANK_ACTION = "DelphiMainTankMacro"
+local OFF_TANK_ACTION = "DelphiOffTankMacro"
 
 local DPS_SEQUENCE_MACRO = [[
 /startattack
 /castsequence [@target,harm] reset=target Seal of the Crusader,judgement,Seal of Command,null
 /castsequence [@target,harm] Holy Strike
 /castsequence [@target,harm] judgement
+]]
+
+local HEAL_MACRO = [[
+/use [@target,help][@targettarget,help][@focustargettarget,help][@focus,help] Flash of Light
+]]
+
+local MAIN_TANK_MACRO = [[
+/startattack
+/castsequence [@target,harm] reset=target Seal of Fury,judgement,null
+/castsequence [@target,harm] reset=combat Holy Strike
+/castsequence [combat] consecration
+]]
+
+local OFF_TANK_MACRO = [[
+/startattack
+/castsequence [@target,harm] reset=target Seal of the Crusader,judgement,Seal of Fury,null
+/castsequence [@target,harm] Holy Strike
+/castsequence [@target,harm] judgement
+/castsequence [combat] consecration
 ]]
 
 local holy_spec = 1
@@ -347,7 +369,9 @@ function _paladin.SetBinds()
     BindSpellToUnits(_spell.seal_of_the_crusader,  _unitids.player)
     BindSpellToUnits(_spell.seal_of_fury,          _unitids.player)
     BindSpellToUnit(    DPS_SEQUENCE_ACTION,    "target",    DPS_SEQUENCE_MACRO,    "",    1)
-
+    BindSpellToUnit(HEAL_ACTION, "target", HEAL_MACRO, "", 1)
+    BindSpellToUnit(MAIN_TANK_ACTION, "target", MAIN_TANK_MACRO, "", 1)
+    BindSpellToUnit(OFF_TANK_ACTION, "target", OFF_TANK_MACRO, "", 1)
 
     --Auras and self-blessings - player only
     BindSpellToUnits(_spell.devotion_aura,         _unitids.player)
@@ -495,14 +519,14 @@ function _paladin.CoreLogic()
         _global.Off()
     elseif role == "off" and not healing_on then
         _global.Off()
-    elseif delphi.racial.perception and CastSpellUnits(
-        delphi.racial.perception
-        ,_unitids.player
-        ,RemainingCooldown(delphi.racial.perception) < 0.5
-            and EnoughManaForSpell(delphi.racial.perception)
-        ,{ SpellUnit_AliveAndFriendly }
-    ) then
-        -- Existing Perception placeholder; stealth detection not wired.
+    -- elseif delphi.racial.perception and CastSpellUnits(
+    --     delphi.racial.perception
+    --     ,_unitids.player
+    --     ,RemainingCooldown(delphi.racial.perception) < 0.5
+    --         and EnoughManaForSpell(delphi.racial.perception)
+    --     ,{ SpellUnit_AliveAndFriendly }
+    -- ) then
+    --     -- Existing Perception placeholder; stealth detection not wired.
     elseif tracking_spell and not TrackingSelectedOrUnknown() and CastSpellUnits(
         tracking_spell
         ,_unitids.player
@@ -517,14 +541,8 @@ function _paladin.CoreLogic()
             -- PVE / DD / Healing: heals first, not healer buff defaults.
             if 1 == 0 then
 
-            elseif _spell.flash_of_light and CastSpellUnits(
-                _spell.flash_of_light
-                ,_unitids.standard_friendly
-                ,RemainingCooldown(_spell.flash_of_light) < 0.5
-                    and EnoughManaForSpell(_spell.flash_of_light)
-                ,{ SpellUnit_AliveAndFriendly, SpellUnit_RangeCheck, SpellUnit_HealthBelow95 }
-                ,RankUnits_MaxHealthDeficit
-            ) then
+            elseif HEAL_ACTION then
+                _global.SetSpellUnit(HEAL_ACTION, "target")
                 acted = true
             end
         end
@@ -541,6 +559,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -585,6 +604,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -629,6 +649,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -689,6 +710,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -721,7 +743,10 @@ function _paladin.CoreLogic()
         if healing_on then
             -- PVE / AOE / Healing: heals first, not healer buff defaults.
             if 1 == 0 then
-                -- Placeholder: independent healing spell chain goes here.
+
+            elseif HEAL_ACTION then
+                _global.SetSpellUnit(HEAL_ACTION, "target")
+                acted = true
             end
         end
         if not acted then
@@ -737,6 +762,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -781,6 +807,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -825,6 +852,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -885,6 +913,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -917,8 +946,10 @@ function _paladin.CoreLogic()
         if healing_on then
             -- PVP / DD / Healing: heals first, not healer buff defaults.
             if 1 == 0 then
-                -- Placeholder: independent healing spell chain goes here.
-            end
+                
+            elseif HEAL_ACTION then
+                _global.SetSpellUnit(HEAL_ACTION, "target")
+                acted = true            end
         end
         if not acted then
             if 1 == 0 then
@@ -933,6 +964,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -977,6 +1009,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1038,6 +1071,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1070,7 +1104,9 @@ function _paladin.CoreLogic()
         if healing_on then
             -- PVP / AOE / Healing: heals first, not healer buff defaults.
             if 1 == 0 then
-                -- Placeholder: independent healing spell chain goes here.
+            elseif HEAL_ACTION then
+                _global.SetSpellUnit(HEAL_ACTION, "target")
+                acted = true
             end
         end
         if not acted then
@@ -1086,6 +1122,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1130,6 +1167,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
@@ -1191,6 +1229,7 @@ function _paladin.CoreLogic()
                     ,_unitids.player
                     ,RemainingCooldown(aura) < 0.5
                         and EnoughManaForSpell(aura)
+                        and not combat
                     ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
                 ) then
                     acted = true
