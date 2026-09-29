@@ -504,6 +504,11 @@ local function RoleOverrides(role, context)
         ResolveOverride(delphi.override.debuffseal, auto_debuffseal)
 end
 
+local function MacroInRange(spell, unit)
+    local ok, in_range = pcall(SpellUnit_RangeCheck, spell, unit)
+    return ok and in_range == true
+end
+
 local perception_requested = false
 local last_perception_signal
 
@@ -594,7 +599,8 @@ function _paladin.CoreLogic()
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
                     acted = true
 
@@ -646,7 +652,8 @@ function _paladin.CoreLogic()
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit(OFF_TANK_ACTION, "target")
                     acted = true
 
@@ -728,7 +735,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit("DelphiDPSSequence", "target")
                     acted = true
                 end  -- closes the PVP / DD / DPS action chain
@@ -815,7 +823,8 @@ function _paladin.CoreLogic()
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
                     acted = true
 
@@ -867,7 +876,8 @@ function _paladin.CoreLogic()
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit(OFF_TANK_ACTION, "target")
                     acted = true
 
@@ -949,7 +959,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit("DelphiDPSSequence", "target")
                     acted = true
                 end  -- closes the PVP / DD / DPS action chain
@@ -1035,7 +1046,8 @@ function _paladin.CoreLogic()
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
                     acted = true
 
@@ -1116,7 +1128,8 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit("DelphiDPSSequence", "target")
                     acted = true
                 end  -- closes the PVP / DD / DPS action chain
@@ -1203,7 +1216,8 @@ function _paladin.CoreLogic()
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
                 if 1 == 0 then
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
                     acted = true
 
@@ -1286,7 +1300,8 @@ function _paladin.CoreLogic()
                     acted = true
 
 
-                elseif UnitAliveAndHostile("target") then
+                elseif UnitAliveAndHostile("target")
+                    and MacroInRange(_spell.judgement, "target") then
                     _global.SetSpellUnit("DelphiDPSSequence", "target")
                     acted = true
                 end  -- closes the PVP / DD / DPS action chain
