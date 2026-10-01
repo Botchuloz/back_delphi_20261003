@@ -374,6 +374,10 @@ function BindSpellToUnit(spell,unit,prefix,suffix,skipcontents,DelegateMacroCrea
         --print(spellunit.." is already bound")
     else
         nextbind = GetNextFreeBind(spellunit)
+        if not nextbind then
+            print("Unable to create a keybind for " .. spellunit .. ": no free keys are available.")
+            return
+        end
         macrotext = ""
         local macro_generation_function = DelegateMacroCreation or CreateUseMacroTextor or CreateCastMacrotext or CreateClickMacrotext
         if(skipcontents==nil)then

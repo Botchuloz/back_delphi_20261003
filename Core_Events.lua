@@ -3,6 +3,22 @@ local _lasterror       = {}
 local _lastcast        = {}
 local _track_aura      = delphi.track_aura
 local print = DelphiPrint
+delphi.whisper_follow = delphi.whisper_follow or {}
+local whisper_follow = delphi.whisper_follow
+
+local function ArmWhisperFollow()
+    if not whisper_follow.sender or InCombatLockdown() then
+        return
+    end
+
+    local button = delphi.bind.button.whisper_follow
+    if not button then
+        print("Whisper follow button is unavailable.")
+        return
+    end
+
+    button:SetAttribute("macrotext", "/stopmacro [combat]\n/targetexact " .. whisper_follow.sender .. "\n/follow")
+end
 
 
 
@@ -133,6 +149,29 @@ function _register:PLAYER_REGEN_ENABLED(event, ...)
     CombatEndCleanup()
     -- Check Extra Action Button status
     TrackExtraActionButton()
+    ArmWhisperFollow()
+end
+
+
+function _register:CHAT_MSG_WHISPER(event, message, sender)
+    if type(message) ~= "string" or string.lower(message:match("^%s*(.-)%s*$")) ~= "follow" then
+        return
+    end
+
+    if type(sender) ~= "string" or sender == "" or sender:find("[%c]") then
+        print("Ignored a follow whisper with an invalid sender.")
+        return
+    end
+
+    if not delphi.bind.spellunit_to_keycombo.whisper_follow then
+        print("Follow request from " .. sender .. " received, but Delphi has no free key to bind it.")
+        return
+    end
+
+    whisper_follow.sender = sender
+    ArmWhisperFollow()
+
+    whisper_follow.pending = true
 end
 
 
@@ -294,3 +333,15 @@ delphi.event.lasterror    = _lasterror
 delphi.event.register     = _register
 delphi.event.lastcast     = _lastcast
 --print("Core_Events.lua")
+
+BindSpellToUnit("whisper_follow", "", "", "", true)
+local whisper_follow_button = delphi.bind.button.whisper_follow
+if whisper_follow_button then
+    whisper_follow_button:SetScript("PostClick", function(button)
+        if not InCombatLockdown() then
+            whisper_follow.sender = nil
+            whisper_follow.pending = false
+            button:SetAttribute("macrotext", "")
+        end
+    end)
+end

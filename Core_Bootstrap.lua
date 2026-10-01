@@ -22,6 +22,11 @@ function GodlyCore()
         end
     end
 
+    if delphi.whisper_follow and delphi.whisper_follow.pending
+        and delphi.bind.spellunit_to_keycombo.whisper_follow then
+        delphi.pythia.global.SetSpellUnit("whisper_follow", "")
+    end
+
     BindRareScannerMacro()
 
     if initialise == 0 then

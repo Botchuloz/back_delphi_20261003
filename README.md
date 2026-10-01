@@ -111,6 +111,7 @@ These call `GetNextFreeBind()` internally, which walks `_combo_status` and retur
 
 `Core_Output_UI.lua` also has deliberately designated NUMPAD control buttons created with `CreateButton()`. Those project-wide controls are different from arbitrarily assigning a class spell one of the allocator's keys.
 
+The inbound `follow` whisper command is queued from the sender and requires a deliberate keypress. Delphi allocates the action a key through the normal bind allocator and signals that key through the global Pythia pixel while the request is pending. Pressing the pixel-indicated key targets and follows that sender; the pixel returns to the normal sequence recommendation after the keypress. If the whisper arrives during combat, the macro is armed after combat ends and its keypress does nothing while combat-locked. Delphi does not attempt the protected action from the chat event.
 
 
 ### The bare-key blacklist
