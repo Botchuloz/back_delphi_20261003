@@ -5,3 +5,6 @@ check time in combat, for holy wrath - done
 UI flyout only if spell is known - done
 
 combat timer for other isntant cast spells, like judgement, seals, holy shock, consecration, etc
+
+blessing exclusion with camp buffs
+blessing exclusion when BoP or Sacrifice active
