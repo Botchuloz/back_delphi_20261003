@@ -52,10 +52,7 @@ function CreatePythia(pythia_name,x,y,size)
                 end
                 -- This bound action is a macro identifier, not a spell name.
                 -- GreenlistSpellUnit requires C_Spell.GetSpellInfo(spell).
-                if spell ~= "DelphiDPSSequence"
-                    and spell ~= "DelphiHealMacro"
-                    and spell ~= "DelphiMainTankMacro"
-                    and spell ~= "DelphiOffTankMacro"
+                if not spell:match("^DelphiPaladin")
                     and spell ~= "RS_MACRO"
                     and spell ~= "whisper_follow" then
                     GreenlistSpellUnit(spell, unit)

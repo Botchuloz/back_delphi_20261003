@@ -532,7 +532,11 @@ The Paladin override pattern uses `0`/nil for Auto, `false` for Disabled, a spel
 
 
 
-The selected Role supplies the automatic aura, seal, blessing, and debuff-seal defaults even when Healing is On; Role Off with Healing On uses the healer-oriented defaults in the supplied Paladin logic. Selecting a Debuff Seal does **not** mean Judgement's target-debuff maintenance/twist is implemented. The current Paladin file resolves that selection, while its relevant Judgement-effect logic is explicitly deferred. Do not label it complete until the actual cast logic is added and verified.
+The selected Role supplies the automatic aura, ordinary Seal, blessing, and Judgement Seal defaults even when Healing is On; Role Off with Healing On uses the healer-oriented defaults. Auto Seal pairs are: PvE main tank Fury/Crusader, PvP main tank Justice/Crusader, PvE off tank Righteousness/Crusader, DPS Command/Crusader, and Role Off Wisdom/Wisdom (ordinary Seal/Judgement Seal). The ordinary Seal and Judgement Seal are resolved independently.
+
+Delphi prebuilds role-rotation macros for each available pair, named `DelphiPaladin<Role>_Judgement<Choice>_Seal<Choice>`, and the rotation recommends the macro matching the resolved pair. For example, the DPS macro for Judgement of Wisdom with Seal of Command is `DelphiPaladinDPSSequence_JudgementWisdom_SealCommand`. The three attack roles × six Judgement-Seal states (five choices plus Disabled) × eight ordinary-Seal states (seven choices plus Disabled) use 144 allocator keys. Healing retains one separate heal-only macro and one allocator key; it does not consume Seal-pair variants.
+
+The Judgement Seal is applied before Judgement to produce that Judgement effect; when a different ordinary Seal is enabled, the macro then applies it for the remaining rotation. A matching ordinary Seal is not recast because Judgement does not consume the active Seal. If the Judgement Seal is Disabled, the macro skips the Judgement setup and applies only the ordinary Seal. If the ordinary Seal is Disabled, the Judgement Seal remains active after the opening Judgement. DPS and off-tank macros omit subsequent Judgement casts when there is no different ordinary Seal to use. Both Disabled means neither Seal nor Judgement is cast by the macro. Healing remains the existing Flash of Light-only macro while Healing On takes priority; the selected Seal pair is used again when the role rotation resumes.
 
 
 
@@ -597,7 +601,7 @@ When adding a new specialization or context branch, preserve the existing branch
 
 
 
-When updating comments, remove a demonstrably stale comment as part of the same code change. Examples from this work: a player-aura check must not still be described as protecting manual tracking after it is removed; a Role value of `"dps"` must not still be documented as `"dps_dd"` or `"dps_aoe"`; and placeholder AoE/PvP healing or deferred Judgement-seal effects must not be described as working.
+When updating comments, remove a demonstrably stale comment as part of the same code change. Examples from this work: a player-aura check must not still be described as protecting manual tracking after it is removed; a Role value of `"dps"` must not still be documented as `"dps_dd"` or `"dps_aoe"`; and placeholder AoE/PvP healing must not be described as working.
 
 
 

@@ -364,7 +364,7 @@ local function CreateMini()
         {label = "Disabled", value = false, icon = DISABLED_ICON},
     })
     local seal = AddOverrideSlot(mini, blessing, "seal", "Seal", SEAL_CHOICES)
-    local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Judgement seal (effect logic deferred)", DEBUFF_SEAL_CHOICES)
+    local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Judgement Seal", DEBUFF_SEAL_CHOICES)
 
     mini.summary = mini:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     mini.summary:SetPoint("BOTTOMLEFT", mini, "BOTTOMLEFT", 8, 4)

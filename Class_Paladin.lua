@@ -104,35 +104,122 @@ _spell.greater_blessing_of_might = "Greater Blessing of Might" --Reworked
 --Retribution - talents
 _spell.repentance           = "Repentance" --TALENT
 
-local DPS_SEQUENCE_ACTION = "DelphiDPSSequence"
-local HEAL_ACTION = "DelphiHealMacro"
-local MAIN_TANK_ACTION = "DelphiMainTankMacro"
-local OFF_TANK_ACTION = "DelphiOffTankMacro"
+local HEAL_ACTION = "DelphiPaladinHeal"
 
-local DPS_SEQUENCE_MACRO = [[
-/startattack
-/castsequence [@target,harm] reset=target Seal of the Crusader,judgement,Seal of Command,null
-/castsequence [@target,harm] Holy Strike
-/castsequence [@target,harm] judgement
-]]
+local ROLE_ROTATION_MACROS = {
+    dps = {name = "DPSSequence"},
+    main_tank = {name = "MainTank"},
+    off_tank = {name = "OffTank"},
+}
+
+local DEBUFF_SEAL_VARIANTS = {
+    {spell = _spell.seal_of_the_crusader, name = "Crusader"},
+    {spell = _spell.seal_of_fury, name = "Fury"},
+    {spell = _spell.seal_of_justice, name = "Justice"},
+    {spell = _spell.seal_of_light, name = "Light"},
+    {spell = _spell.seal_of_wisdom, name = "Wisdom"},
+    {spell = false, name = "NoJudgement"},
+}
+
+local SEAL_VARIANTS = {
+    {spell = _spell.seal_of_righteousness, name = "Righteousness"},
+    {spell = _spell.seal_of_command, name = "Command"},
+    {spell = _spell.seal_of_the_crusader, name = "Crusader"},
+    {spell = _spell.seal_of_fury, name = "Fury"},
+    {spell = _spell.seal_of_justice, name = "Justice"},
+    {spell = _spell.seal_of_light, name = "Light"},
+    {spell = _spell.seal_of_wisdom, name = "Wisdom"},
+    {spell = false, name = "NoSeal"},
+}
+
+local role_rotation_actions = {}
+
+local function RoleRotationActionName(role, debuffseal, seal)
+    local role_config = ROLE_ROTATION_MACROS[role]
+    if not role_config then
+        return nil
+    end
+
+    local debuff_name
+    for _, variant in ipairs(DEBUFF_SEAL_VARIANTS) do
+        if variant.spell == debuffseal then
+            debuff_name = variant.name
+            break
+        end
+    end
+
+    local seal_name
+    for _, variant in ipairs(SEAL_VARIANTS) do
+        if variant.spell == seal then
+            seal_name = variant.name
+            break
+        end
+    end
+
+    if not debuff_name or not seal_name then
+        return nil
+    end
+
+    return "DelphiPaladin" .. role_config.name
+        .. "_Judgement" .. debuff_name .. "_Seal" .. seal_name
+end
+
+local function CreateRoleRotationMacro(role, debuffseal, seal)
+    local lines = {"/startattack"}
+
+    if debuffseal then
+        local sequence = debuffseal .. ",judgement"
+        if seal and seal ~= debuffseal then
+            sequence = sequence .. "," .. seal
+        end
+        lines[#lines + 1] = "/castsequence [@target,harm] reset=target "
+            .. sequence .. ",null"
+    elseif seal then
+        lines[#lines + 1] = "/castsequence [@target,harm] reset=target "
+            .. seal .. ",null"
+    end
+
+    if role == "main_tank" then
+        lines[#lines + 1] = "/castsequence [@target,harm] reset=combat Holy Strike"
+        lines[#lines + 1] = "/castsequence [combat] consecration"
+    else
+        lines[#lines + 1] = "/castsequence [@target,harm] Holy Strike"
+        if debuffseal and seal and seal ~= debuffseal then
+            lines[#lines + 1] = "/castsequence [@target,harm] judgement"
+        end
+        if role == "off_tank" then
+            lines[#lines + 1] = "/castsequence [combat] consecration"
+        end
+    end
+
+    return table.concat(lines, "\n")
+end
+
+local function BindRoleRotationMacros()
+    for role in pairs(ROLE_ROTATION_MACROS) do
+        role_rotation_actions[role] = {}
+        for _, debuff_variant in ipairs(DEBUFF_SEAL_VARIANTS) do
+            role_rotation_actions[role][debuff_variant.spell] = {}
+            for _, seal_variant in ipairs(SEAL_VARIANTS) do
+                local action = RoleRotationActionName(
+                    role,
+                    debuff_variant.spell,
+                    seal_variant.spell
+                )
+                local macro = CreateRoleRotationMacro(
+                    role,
+                    debuff_variant.spell,
+                    seal_variant.spell
+                )
+                role_rotation_actions[role][debuff_variant.spell][seal_variant.spell] = action
+                BindSpellToUnit(action, "target", macro, "", true)
+            end
+        end
+    end
+end
 
 local HEAL_MACRO = [[
 /use [@target,help][@targettarget,help][@focustargettarget,help][@focus,help] Flash of Light
-]]
-
-local MAIN_TANK_MACRO = [[
-/startattack
-/castsequence [@target,harm] reset=target Seal of Fury,judgement,null
-/castsequence [@target,harm] reset=combat Holy Strike
-/castsequence [combat] consecration
-]]
-
-local OFF_TANK_MACRO = [[
-/startattack
-/castsequence [@target,harm] reset=target Seal of the Crusader,judgement,Seal of Fury,null
-/castsequence [@target,harm] Holy Strike
-/castsequence [@target,harm] judgement
-/castsequence [combat] consecration
 ]]
 
 local holy_spec = 1
@@ -368,10 +455,7 @@ function _paladin.SetBinds()
     BindSpellToUnits(_spell.seal_of_command,       _unitids.player)
     BindSpellToUnits(_spell.seal_of_the_crusader,  _unitids.player)
     BindSpellToUnits(_spell.seal_of_fury,          _unitids.player)
-    BindSpellToUnit(    DPS_SEQUENCE_ACTION,    "target",    DPS_SEQUENCE_MACRO,    "",    1)
     BindSpellToUnit(HEAL_ACTION, "target", HEAL_MACRO, "", 1)
-    BindSpellToUnit(MAIN_TANK_ACTION, "target", MAIN_TANK_MACRO, "", 1)
-    BindSpellToUnit(OFF_TANK_ACTION, "target", OFF_TANK_MACRO, "", 1)
 
     --Auras and self-blessings - player only
     BindSpellToUnits(_spell.devotion_aura,         _unitids.player)
@@ -440,6 +524,8 @@ function _paladin.SetBinds()
     BindSpellToUnits("Find Minerals", _unitids.player)
     BindSpellToUnits("Find Herbs", _unitids.player)
     BindSpellToUnits(_spell.sense_undead, _unitids.player)
+
+    BindRoleRotationMacros()
 end
 
 
@@ -504,9 +590,31 @@ local function RoleOverrides(role, context)
         ResolveOverride(delphi.override.debuffseal, auto_debuffseal)
 end
 
+local missing_rotation_actions = {}
+local function OfferRoleRotation(role, debuffseal, seal)
+    local by_debuffseal = role_rotation_actions[role]
+    local by_seal = by_debuffseal and by_debuffseal[debuffseal]
+    local action = by_seal and by_seal[seal]
+    if not action or not delphi.bind.spellunit_to_keycombo[action .. "target"] then
+        local key = tostring(role) .. ":" .. tostring(debuffseal) .. ":" .. tostring(seal)
+        if not missing_rotation_actions[key] then
+            print("No bound Paladin rotation macro for " .. key)
+            missing_rotation_actions[key] = true
+        end
+        return false
+    end
+
+    _global.SetSpellUnit(action, "target")
+    return true
+end
+
 local function MacroInRange(spell, unit)
     local ok, in_range = pcall(SpellUnit_RangeCheck, spell, unit)
     return ok and in_range == true
+end
+
+local function RoleRotationInRange(debuffseal)
+    return not debuffseal or MacroInRange(_spell.judgement, "target")
 end
 
 local function OfferRareScannerMacro(combat)
@@ -620,8 +728,8 @@ function _paladin.CoreLogic()
                 if 1 == 0 then
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
 
                 elseif aura and CastSpellUnits(
@@ -644,16 +752,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
-
                 elseif blessing and CastSpellUnits(
                     blessing
                     ,_unitids.player
@@ -665,7 +763,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "off_tank" then
                 -- PVE / DD / Off Tank
@@ -673,8 +771,8 @@ function _paladin.CoreLogic()
                 if 1 == 0 then
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit(OFF_TANK_ACTION, "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
 
                 elseif aura and CastSpellUnits(
@@ -697,15 +795,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -718,7 +807,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "dps" then
                 -- PVE / DD / DPS
@@ -735,15 +824,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -756,13 +836,13 @@ function _paladin.CoreLogic()
                     acted = true
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit("DelphiDPSSequence", "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
                 end  -- closes the PVP / DD / DPS action chain
 
-                -- -- Plain Judgement retained; selected debuffseal's matching
-                -- -- target-effect maintenance remains deferred.
+                -- -- Legacy standalone Judgement candidate; selected debuffseal's matching
+                -- -- target effect is handled by the selected role macro.
                 -- elseif _spell.judgement and CastSpellUnits(
                 --     _spell.judgement
                 --     ,_unitids.standard_hostile
@@ -782,7 +862,7 @@ function _paladin.CoreLogic()
                 --     acted = true
                 -- end
                 -- -- debuffseal is resolved for this role; the Judgement-of-X
-                -- -- target-debuff logic is intentionally not implemented here.
+                -- -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "off" then
                 -- PVE / DD / Healing-only
@@ -799,15 +879,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -820,7 +891,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
             end
         end
         if not acted then OfferRareScannerMacro(combat) end
@@ -844,8 +915,8 @@ function _paladin.CoreLogic()
                 if 1 == 0 then
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
 
                 elseif aura and CastSpellUnits(
@@ -868,15 +939,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -889,7 +951,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "off_tank" then
                 -- PVE / AOE / Off Tank
@@ -897,8 +959,8 @@ function _paladin.CoreLogic()
                 if 1 == 0 then
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit(OFF_TANK_ACTION, "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
 
                 elseif aura and CastSpellUnits(
@@ -921,15 +983,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
                   
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -942,7 +995,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "dps" then
                 -- PVE / AOE / DPS
@@ -959,15 +1012,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -980,13 +1024,13 @@ function _paladin.CoreLogic()
                     acted = true
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit("DelphiDPSSequence", "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
                 end  -- closes the PVP / DD / DPS action chain
 
-                -- -- Plain Judgement retained; selected debuffseal's matching
-                -- -- target-effect maintenance remains deferred.
+                -- -- Legacy standalone Judgement candidate; selected debuffseal's matching
+                -- -- target effect is handled by the selected role macro.
                 -- elseif _spell.judgement and CastSpellUnits(
                 --     _spell.judgement
                 --     ,_unitids.standard_hostile
@@ -1006,7 +1050,7 @@ function _paladin.CoreLogic()
                 --     acted = true
                 -- end
                 -- -- debuffseal is resolved for this role; the Judgement-of-X
-                -- -- target-debuff logic is intentionally not implemented here.
+                -- -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "off" then
                 -- PVE / AOE / Healing-only
@@ -1023,15 +1067,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1044,7 +1079,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
             end
         end
         if not acted then OfferRareScannerMacro(combat) end
@@ -1067,8 +1102,8 @@ function _paladin.CoreLogic()
                 if 1 == 0 then
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
 
                 elseif aura and CastSpellUnits(
@@ -1091,15 +1126,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1112,7 +1138,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "dps" then
                 -- PVP / DD / DPS
@@ -1149,14 +1175,14 @@ function _paladin.CoreLogic()
                     acted = true
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit("DelphiDPSSequence", "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
                 end  -- closes the PVP / DD / DPS action chain
 
-                -- Plain Judgement and Holy Strike remain commented out below.
-                -- -- Plain Judgement retained; selected debuffseal's matching
-                -- -- target-effect maintenance remains deferred.
+                -- The role macro now supplies the Judgement and Holy Strike sequence.
+                -- -- Legacy standalone Judgement candidate; selected debuffseal's matching
+                -- -- target effect is handled by the selected role macro.
                 -- elseif _spell.judgement and CastSpellUnits(
                 --     _spell.judgement
                 --     ,_unitids.standard_hostile
@@ -1176,7 +1202,7 @@ function _paladin.CoreLogic()
                 --     acted = true
                 -- end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "off" then
                 -- PVP / DD / Healing-only
@@ -1193,15 +1219,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1214,7 +1231,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
             end
         end
         if not acted then OfferRareScannerMacro(combat) end
@@ -1237,8 +1254,8 @@ function _paladin.CoreLogic()
                 if 1 == 0 then
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit(MAIN_TANK_ACTION, "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
 
                 elseif aura and CastSpellUnits(
@@ -1261,15 +1278,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1282,7 +1290,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "dps" then
                 -- PVP / AOE / DPS
@@ -1299,15 +1307,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1321,13 +1320,13 @@ function _paladin.CoreLogic()
 
 
                 elseif UnitAliveAndHostile("target")
-                    and MacroInRange(_spell.judgement, "target") then
-                    _global.SetSpellUnit("DelphiDPSSequence", "target")
+                    and RoleRotationInRange(debuffseal)
+                    and OfferRoleRotation(role, debuffseal, seal) then
                     acted = true
                 end  -- closes the PVP / DD / DPS action chain
 
-                -- -- Plain Judgement retained; selected debuffseal's matching
-                -- -- target-effect maintenance remains deferred.
+                -- -- Legacy standalone Judgement candidate; selected debuffseal's matching
+                -- -- target effect is handled by the selected role macro.
                 -- elseif _spell.judgement and CastSpellUnits(
                 --     _spell.judgement
                 --     ,_unitids.standard_hostile
@@ -1347,7 +1346,7 @@ function _paladin.CoreLogic()
                 --     acted = true
                 -- end
                 -- -- debuffseal is resolved for this role; the Judgement-of-X
-                -- -- target-debuff logic is intentionally not implemented here.
+                -- -- role-specific macros handle the resolved Seal combination.
 
             elseif role == "off" then
                 -- PVP / AOE / Healing-only
@@ -1364,15 +1363,6 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
-                -- Disabled for now; left in place for easy re-enabling.
-                elseif false and seal and combat and CastSpellUnits(
-                    seal
-                    ,_unitids.player
-                    ,RemainingCooldown(seal) < 0.5
-                        and EnoughManaForSpell(seal)
-                    ,{ SpellUnit_AliveAndFriendly, SpellUnit_MyBuffExpired }
-                ) then
-                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1385,7 +1375,7 @@ function _paladin.CoreLogic()
                     acted = true
                 end
                 -- debuffseal is resolved for this role; the Judgement-of-X
-                -- target-debuff logic is intentionally not implemented here.
+                -- role-specific macros handle the resolved Seal combination.
             end
         end
         if not acted then OfferRareScannerMacro(combat) end
