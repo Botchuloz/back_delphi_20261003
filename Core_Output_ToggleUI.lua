@@ -60,13 +60,74 @@ local function RestorePos(frame, key, default)
 end
 
 local function GetSpellIcon(spellName)
+    if C_Spell and C_Spell.GetSpellTexture then
+        local ok, icon = pcall(C_Spell.GetSpellTexture, spellName)
+        if ok and icon then
+            return icon
+        end
+    end
+
     if C_Spell and C_Spell.GetSpellInfo then
         local ok, info = pcall(C_Spell.GetSpellInfo, spellName)
-        if ok and type(info) == "table" and info.iconID then
-            return info.iconID
+        if ok and type(info) == "table" then
+            local icon = info.iconID or info.icon
+            if icon then
+                return icon
+            end
         end
     end
     return 134400
+end
+
+local known_spell_cache = {}
+local spell_cache_events = CreateFrame("Frame")
+spell_cache_events:RegisterEvent("PLAYER_LOGIN")
+spell_cache_events:RegisterEvent("SPELLS_CHANGED")
+spell_cache_events:SetScript("OnEvent", function()
+    wipe(known_spell_cache)
+end)
+
+local function PlayerKnowsSpell(spellName)
+    local cached = known_spell_cache[spellName]
+    if cached ~= nil then
+        return cached
+    end
+
+    if not (C_Spell and C_Spell.GetSpellInfo) then
+        known_spell_cache[spellName] = false
+        return false
+    end
+
+    local ok, info = pcall(C_Spell.GetSpellInfo, spellName)
+    if not ok or type(info) ~= "table" or type(info.spellID) ~= "number" then
+        known_spell_cache[spellName] = false
+        return false
+    end
+
+    if C_SpellBook and C_SpellBook.IsSpellKnown then
+        local known_ok, known = pcall(C_SpellBook.IsSpellKnown, info.spellID)
+        known_spell_cache[spellName] = known_ok and known == true
+    elseif IsPlayerSpell then
+        local known_ok, known = pcall(IsPlayerSpell, info.spellID)
+        known_spell_cache[spellName] = known_ok and known == true
+    else
+        known_spell_cache[spellName] = false
+    end
+
+    return known_spell_cache[spellName]
+end
+
+local function KnownSpellChoices(choices)
+    local filtered = {}
+    for _, choice in ipairs(choices) do
+        if not choice.spell or PlayerKnowsSpell(choice.spell) then
+            if choice.spell then
+                choice.icon = GetSpellIcon(choice.spell)
+            end
+            filtered[#filtered + 1] = choice
+        end
+    end
+    return filtered
 end
 
 -- One picker is reused for all slots.
@@ -204,12 +265,17 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices, chang
             GameTooltip:AddLine("Inherit (ForeverBlessings)", 0.8, 0.8, 0.8)
         else
             local valueLabel = tostring(v)
+            local found = false
             local list = type(choices) == "function" and choices() or choices
             for _, choice in ipairs(list) do
                 if choice.value == v then
                     valueLabel = choice.label
+                    found = true
                     break
                 end
+            end
+            if not found and type(choices) == "function" then
+                valueLabel = "Unavailable (not learned): " .. valueLabel
             end
             GameTooltip:AddLine(valueLabel, 0.8, 0.8, 0.8)
         end
@@ -231,25 +297,68 @@ end
 
 local SEAL_CHOICES = {
     {label = "Auto",                  value = 0, icon = AUTO_ICON},
-    {label = "Seal of Righteousness", value = "Seal of Righteousness", icon = GetSpellIcon("Seal of Righteousness")},
-    {label = "Seal of Command",       value = "Seal of Command",       icon = GetSpellIcon("Seal of Command")},
-    {label = "Seal of the Crusader",  value = "Seal of the Crusader",  icon = GetSpellIcon("Seal of the Crusader")},
-    {label = "Seal of Fury",          value = "Seal of Fury",          icon = GetSpellIcon("Seal of Fury")},
-    {label = "Seal of Justice",       value = "Seal of Justice",       icon = GetSpellIcon("Seal of Justice")},
-    {label = "Seal of Light",         value = "Seal of Light",         icon = GetSpellIcon("Seal of Light")},
-    {label = "Seal of Wisdom",        value = "Seal of Wisdom",        icon = GetSpellIcon("Seal of Wisdom")},
+    {label = "Seal of Righteousness", value = "Seal of Righteousness", spell = "Seal of Righteousness", icon = GetSpellIcon("Seal of Righteousness")},
+    {label = "Seal of Command",       value = "Seal of Command", spell = "Seal of Command", icon = GetSpellIcon("Seal of Command")},
+    {label = "Seal of the Crusader",  value = "Seal of the Crusader", spell = "Seal of the Crusader", icon = GetSpellIcon("Seal of the Crusader")},
+    {label = "Seal of Fury",          value = "Seal of Fury", spell = "Seal of Fury", icon = GetSpellIcon("Seal of Fury")},
+    {label = "Seal of Justice",       value = "Seal of Justice", spell = "Seal of Justice", icon = GetSpellIcon("Seal of Justice")},
+    {label = "Seal of Light",         value = "Seal of Light", spell = "Seal of Light", icon = GetSpellIcon("Seal of Light")},
+    {label = "Seal of Wisdom",        value = "Seal of Wisdom", spell = "Seal of Wisdom", icon = GetSpellIcon("Seal of Wisdom")},
     {label = "Disabled",              value = false, icon = DISABLED_ICON},
 }
 
 local DEBUFF_SEAL_CHOICES = {
     {label = "Auto",                 value = 0, icon = AUTO_ICON},
-    {label = "Judgement of the Crusader", value = "Seal of the Crusader", icon = GetSpellIcon("Seal of the Crusader")},
-    {label = "Judgement of Fury",         value = "Seal of Fury",         icon = GetSpellIcon("Seal of Fury")},
-    {label = "Judgement of Justice",      value = "Seal of Justice",      icon = GetSpellIcon("Seal of Justice")},
-    {label = "Judgement of Light",        value = "Seal of Light",        icon = GetSpellIcon("Seal of Light")},
-    {label = "Judgement of Wisdom",       value = "Seal of Wisdom",       icon = GetSpellIcon("Seal of Wisdom")},
+    {label = "Judgement of the Crusader", value = "Seal of the Crusader", spell = "Seal of the Crusader", icon = GetSpellIcon("Seal of the Crusader")},
+    {label = "Judgement of Fury",         value = "Seal of Fury", spell = "Seal of Fury", icon = GetSpellIcon("Seal of Fury")},
+    {label = "Judgement of Justice",      value = "Seal of Justice", spell = "Seal of Justice", icon = GetSpellIcon("Seal of Justice")},
+    {label = "Judgement of Light",        value = "Seal of Light", spell = "Seal of Light", icon = GetSpellIcon("Seal of Light")},
+    {label = "Judgement of Wisdom",       value = "Seal of Wisdom", spell = "Seal of Wisdom", icon = GetSpellIcon("Seal of Wisdom")},
     {label = "Disabled",             value = false, icon = DISABLED_ICON},
 }
+
+local AURA_CHOICES = {
+    {label = "Auto", value = 0, icon = AUTO_ICON},
+    {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
+    {label = "Devotion Aura", value = "Devotion Aura", spell = "Devotion Aura", icon = GetSpellIcon("Devotion Aura")},
+    {label = "Retribution Aura", value = "Retribution Aura", spell = "Retribution Aura", icon = GetSpellIcon("Retribution Aura")},
+    {label = "Concentration Aura", value = "Concentration Aura", spell = "Concentration Aura", icon = GetSpellIcon("Concentration Aura")},
+    {label = "Shadow Resistance Aura", value = "Shadow Resistance Aura", spell = "Shadow Resistance Aura", icon = GetSpellIcon("Shadow Resistance Aura")},
+    {label = "Frost Resistance Aura", value = "Frost Resistance Aura", spell = "Frost Resistance Aura", icon = GetSpellIcon("Frost Resistance Aura")},
+    {label = "Fire Resistance Aura", value = "Fire Resistance Aura", spell = "Fire Resistance Aura", icon = GetSpellIcon("Fire Resistance Aura")},
+    {label = "Disabled", value = false, icon = DISABLED_ICON},
+}
+
+local BLESSING_CHOICES = {
+    {label = "Auto", value = 0, icon = AUTO_ICON},
+    {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
+    {label = "Blessing of Might", value = "Blessing of Might", spell = "Blessing of Might", icon = GetSpellIcon("Blessing of Might")},
+    {label = "Blessing of Kings", value = "Blessing of Kings", spell = "Blessing of Kings", icon = GetSpellIcon("Blessing of Kings")},
+    {label = "Blessing of Wisdom", value = "Blessing of Wisdom", spell = "Blessing of Wisdom", icon = GetSpellIcon("Blessing of Wisdom")},
+    {label = "Blessing of Salvation", value = "Blessing of Salvation", spell = "Blessing of Salvation", icon = GetSpellIcon("Blessing of Salvation")},
+    {label = "Blessing of Sacrifice", value = "Blessing of Sacrifice", spell = "Blessing of Sacrifice", icon = GetSpellIcon("Blessing of Sacrifice")},
+    {label = "Blessing of Light", value = "Blessing of Light", spell = "Blessing of Light", icon = GetSpellIcon("Blessing of Light")},
+    {label = "Disabled", value = false, icon = DISABLED_ICON},
+}
+
+local function KnownSealChoices()
+    return KnownSpellChoices(SEAL_CHOICES)
+end
+
+local function KnownJudgementChoices()
+    local choices = KnownSpellChoices(DEBUFF_SEAL_CHOICES)
+    if PlayerKnowsSpell("Judgement") then
+        return choices
+    end
+
+    local filtered = {}
+    for _, choice in ipairs(choices) do
+        if not choice.spell then
+            filtered[#filtered + 1] = choice
+        end
+    end
+    return filtered
+end
 
 local CONTEXT_CHOICES = {
     {label="PvE", value="pve", icon=136235},
@@ -352,30 +461,13 @@ local function CreateMini()
         end)
     local healing = AddOverrideSlot(mini, context, "healing", "Healing", HEALING_CHOICES)
     local role = AddOverrideSlot(mini, healing, "role", "Attack Role", RoleChoices)
-    local aura = AddOverrideSlot(mini, role, "aura", "Aura", {
-        {label = "Auto", value = 0, icon = AUTO_ICON},
-        {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
-        {label = "Devotion Aura", value = "Devotion Aura", icon = GetSpellIcon("Devotion Aura")},
-        {label = "Retribution Aura", value = "Retribution Aura", icon = GetSpellIcon("Retribution Aura")},
-        {label = "Concentration Aura", value = "Concentration Aura", icon = GetSpellIcon("Concentration Aura")},
-        {label = "Shadow Resistance Aura", value = "Shadow Resistance Aura", icon = GetSpellIcon("Shadow Resistance Aura")},
-        {label = "Frost Resistance Aura", value = "Frost Resistance Aura", icon = GetSpellIcon("Frost Resistance Aura")},
-        {label = "Fire Resistance Aura", value = "Fire Resistance Aura", icon = GetSpellIcon("Fire Resistance Aura")},
-        {label = "Disabled", value = false, icon = DISABLED_ICON},
-    })
-    local blessing = AddOverrideSlot(mini, aura, "blessing", "Blessing", {
-        {label = "Auto", value = 0, icon = AUTO_ICON},
-        {label = "Inherit (ForeverBlessings)", value = FB_INHERIT, icon = FB_ICON},
-        {label = "Blessing of Might", value = "Blessing of Might", icon = GetSpellIcon("Blessing of Might")},
-        {label = "Blessing of Kings", value = "Blessing of Kings", icon = GetSpellIcon("Blessing of Kings")},
-        {label = "Blessing of Wisdom", value = "Blessing of Wisdom", icon = GetSpellIcon("Blessing of Wisdom")},
-        {label = "Blessing of Salvation", value = "Blessing of Salvation", icon = GetSpellIcon("Blessing of Salvation")},
-        {label = "Blessing of Sacrifice", value = "Blessing of Sacrifice", icon = GetSpellIcon("Blessing of Sacrifice")},
-        {label = "Blessing of Light", value = "Blessing of Light", icon = GetSpellIcon("Blessing of Light")},
-        {label = "Disabled", value = false, icon = DISABLED_ICON},
-    })
-    local seal = AddOverrideSlot(mini, blessing, "seal", "Seal", SEAL_CHOICES)
-    local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Judgement", DEBUFF_SEAL_CHOICES)
+    local aura = AddOverrideSlot(mini, role, "aura", "Aura",
+        function() return KnownSpellChoices(AURA_CHOICES) end)
+    local blessing = AddOverrideSlot(mini, aura, "blessing", "Blessing",
+        function() return KnownSpellChoices(BLESSING_CHOICES) end)
+    local seal = AddOverrideSlot(mini, blessing, "seal", "Seal", KnownSealChoices)
+    local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Judgement",
+        KnownJudgementChoices)
 
     mini.summary = mini:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     mini.summary:SetPoint("BOTTOMLEFT", mini, "BOTTOMLEFT", 8, 4)

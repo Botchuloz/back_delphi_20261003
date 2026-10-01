@@ -543,6 +543,10 @@ The Judgement Seal is applied before Judgement to produce that Judgement effect;
 
 Aura, Blessing, Seal, and Judgement selections made from the flyout are saved directly to the `DelphiDB` SavedVariables table and restored next session, including Auto and Disabled selections. Saved overrides are reapplied on Delphi's `ADDON_LOADED` event, after WoW has loaded its SavedVariables, and synchronized on `PLAYER_LOGOUT` (including `/reload`). Context, Healing, and Attack Role are not part of this saved override set.
 
+The Aura, Blessing, Seal, and Judgement flyouts filter manual spell choices against the current character's spellbook. Seal and Judgement choices require the corresponding Seal to be known; Judgement choices also require the base Judgement spell. Auto, Disabled, and (for Aura/Blessing) ForeverBlessings inheritance remain available. Known-spell results are cached and refreshed on `PLAYER_LOGIN` and `SPELLS_CHANGED`, so choices reflect spells learned as the character levels. Spell icons are re-resolved when choices are built, after spellbook data is available. Existing SavedVariables are retained if a character does not know a previously selected spell; the flyout will not offer that spell on that character.
+
+Paladin Aura, Blessing, and other maintained friendly buffs use `SpellUnit_BuffExpired` rather than `SpellUnit_MyBuffExpired`. Delphi therefore treats the buff as active regardless of who applied it, and will not overwrite another player's matching buff just because it was not cast by this Paladin. These buff-maintenance candidates are gated with `not combat`, so the general helpful-aura scan runs out of combat; the combat aura-secrecy caveat does not apply to these checks.
+
 
 
 ## 4. Error Handling & Taint Safety
