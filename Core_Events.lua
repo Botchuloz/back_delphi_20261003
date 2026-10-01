@@ -187,6 +187,18 @@ function _register:PLAYER_ENTERING_WORLD(event, ...)
 end
 
 
+function _register:ADDON_LOADED(event, addon_name)
+    if addon_name == "Delphi" then
+        delphi.LoadPaladinOverrides()
+    end
+end
+
+
+function _register:PLAYER_LOGOUT(event, ...)
+    delphi.SavePaladinOverrides()
+end
+
+
 function LastErrorMessageOccurred(error_string)
     return _now - (_lasterror[error_string] or (_now-999))
 end

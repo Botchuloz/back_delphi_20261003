@@ -16,8 +16,10 @@ if delphi.override.role == "dps_dd" or delphi.override.role == "dps_aoe" then
 end
 if delphi.override.role == nil then delphi.override.role = "dps" end
 if delphi.override.healing == nil then delphi.override.healing = false end
-delphi.db = delphi.db or {}
+DelphiDB = DelphiDB or {}
+delphi.db = DelphiDB
 delphi.db.ui = delphi.db.ui or {}
+DelphiDB.paladin_overrides = DelphiDB.paladin_overrides or {}
 
 local print = DelphiPrint
 local FLAT = "Interface\\Buttons\\WHITE8x8"
@@ -185,6 +187,7 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices, chang
     slot:SetScript("OnClick", function(self)
         ShowPicker(self, choices, function(value, icon)
             delphi.override[key] = value
+            delphi.SavePaladinOverrides()
             self.icon:SetTexture(icon)
             if changed then changed(value) end
         end)
@@ -200,7 +203,15 @@ local function AddOverrideSlot(parent, anchor, key, tooltipLabel, choices, chang
         elseif v == FB_INHERIT then
             GameTooltip:AddLine("Inherit (ForeverBlessings)", 0.8, 0.8, 0.8)
         else
-            GameTooltip:AddLine(tostring(v), 0.8, 0.8, 0.8)
+            local valueLabel = tostring(v)
+            local list = type(choices) == "function" and choices() or choices
+            for _, choice in ipairs(list) do
+                if choice.value == v then
+                    valueLabel = choice.label
+                    break
+                end
+            end
+            GameTooltip:AddLine(valueLabel, 0.8, 0.8, 0.8)
         end
         GameTooltip:Show()
     end)
@@ -232,11 +243,11 @@ local SEAL_CHOICES = {
 
 local DEBUFF_SEAL_CHOICES = {
     {label = "Auto",                 value = 0, icon = AUTO_ICON},
-    {label = "Seal of the Crusader", value = "Seal of the Crusader", icon = GetSpellIcon("Seal of the Crusader")},
-    {label = "Seal of Fury",         value = "Seal of Fury",         icon = GetSpellIcon("Seal of Fury")},
-    {label = "Seal of Justice",      value = "Seal of Justice",      icon = GetSpellIcon("Seal of Justice")},
-    {label = "Seal of Light",        value = "Seal of Light",        icon = GetSpellIcon("Seal of Light")},
-    {label = "Seal of Wisdom",       value = "Seal of Wisdom",       icon = GetSpellIcon("Seal of Wisdom")},
+    {label = "Judgement of the Crusader", value = "Seal of the Crusader", icon = GetSpellIcon("Seal of the Crusader")},
+    {label = "Judgement of Fury",         value = "Seal of Fury",         icon = GetSpellIcon("Seal of Fury")},
+    {label = "Judgement of Justice",      value = "Seal of Justice",      icon = GetSpellIcon("Seal of Justice")},
+    {label = "Judgement of Light",        value = "Seal of Light",        icon = GetSpellIcon("Seal of Light")},
+    {label = "Judgement of Wisdom",       value = "Seal of Wisdom",       icon = GetSpellIcon("Seal of Wisdom")},
     {label = "Disabled",             value = false, icon = DISABLED_ICON},
 }
 
@@ -364,7 +375,7 @@ local function CreateMini()
         {label = "Disabled", value = false, icon = DISABLED_ICON},
     })
     local seal = AddOverrideSlot(mini, blessing, "seal", "Seal", SEAL_CHOICES)
-    local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Judgement Seal", DEBUFF_SEAL_CHOICES)
+    local debuffseal = AddOverrideSlot(mini, seal, "debuffseal", "Judgement", DEBUFF_SEAL_CHOICES)
 
     mini.summary = mini:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     mini.summary:SetPoint("BOTTOMLEFT", mini, "BOTTOMLEFT", 8, 4)

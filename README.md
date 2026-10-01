@@ -538,6 +538,8 @@ Delphi prebuilds role-rotation macros for each available pair, named `DelphiPala
 
 The Judgement Seal is applied before Judgement to produce that Judgement effect; when a different ordinary Seal is enabled, the macro then applies it for the remaining rotation. A matching ordinary Seal is not recast because Judgement does not consume the active Seal. If the Judgement Seal is Disabled, the macro skips the Judgement setup and applies only the ordinary Seal. If the ordinary Seal is Disabled, the Judgement Seal remains active after the opening Judgement. DPS and off-tank macros omit subsequent Judgement casts when there is no different ordinary Seal to use. Both Disabled means neither Seal nor Judgement is cast by the macro. Healing remains the existing Flash of Light-only macro while Healing On takes priority; the selected Seal pair is used again when the role rotation resumes.
 
+Aura, Blessing, Seal, and Judgement selections made from the flyout are saved directly to the `DelphiDB` SavedVariables table and restored next session, including Auto and Disabled selections. Saved overrides are reapplied on Delphi's `ADDON_LOADED` event, after WoW has loaded its SavedVariables, and synchronized on `PLAYER_LOGOUT` (including `/reload`). Context, Healing, and Attack Role are not part of this saved override set.
+
 
 
 ## 4. Error Handling & Taint Safety

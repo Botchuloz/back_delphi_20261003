@@ -7,6 +7,31 @@ delphi = {}
 -- handler needed.
 DelphiDB = DelphiDB or {}
 delphi.db = DelphiDB
+DelphiDB.paladin_overrides = DelphiDB.paladin_overrides or {}
+delphi.override = delphi.override or {}
+
+local paladin_override_keys = {"aura", "blessing", "seal", "debuffseal"}
+function delphi.LoadPaladinOverrides()
+    delphi.db = DelphiDB
+    DelphiDB.paladin_overrides = DelphiDB.paladin_overrides or {}
+
+    for _, key in ipairs(paladin_override_keys) do
+        local saved_value = DelphiDB.paladin_overrides[key]
+        if saved_value ~= nil then
+            delphi.override[key] = saved_value
+        end
+    end
+end
+
+delphi.LoadPaladinOverrides()
+
+function delphi.SavePaladinOverrides()
+    delphi.db = DelphiDB
+    DelphiDB.paladin_overrides = DelphiDB.paladin_overrides or {}
+    for _, key in ipairs(paladin_override_keys) do
+        DelphiDB.paladin_overrides[key] = delphi.override[key]
+    end
+end
 
 _now  = 0
 _null = ""
