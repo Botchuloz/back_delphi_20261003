@@ -31,6 +31,44 @@ table_combatTime = {}
 
 table_movementTime = {}
 
+local function SetMovementState(moving, speed)
+    local status = moving and "moving" or "stationary"
+    if table_movementTime.movementstatus ~= status then
+        table_movementTime.movementstatus = status
+        if moving then
+            table_movementTime.started_moving = _now
+            table_movementTime.started_stationary = 0
+        else
+            table_movementTime.started_stationary = _now
+            table_movementTime.started_moving = 0
+        end
+    end
+    table_movementTime.speed = speed
+end
+
+
+-- Seed the event-driven movement state when speed is readable. Movement
+-- events keep it current in combat, where GetUnitSpeed may return a secret.
+local function InitializeMovementState()
+    if type(GetUnitSpeed) ~= "function" then
+        return
+    end
+
+    local ok, current_speed = pcall(GetUnitSpeed, "player")
+    if not ok or type(current_speed) ~= "number" then
+        return
+    end
+
+    if type(issecretvalue) == "function" then
+        local secret_ok, is_secret = pcall(issecretvalue, current_speed)
+        if not secret_ok or is_secret then
+            return
+        end
+    end
+
+    SetMovementState(current_speed ~= 0, current_speed / 7)
+end
+
 -- Track the status of the Extra Action Button
 function TrackExtraActionButton()
     if HasExtraActionBar() and ExtraActionButton1:IsShown() then
@@ -72,52 +110,13 @@ end
 
 --local moving,moving_for,stationary,stationary_for,speed = MovementStatus()
 function MovementStatus()
-    local speed       = (GetUnitSpeed("player") / 7) or 0
-    local stationary  = speed == 0
-    local moving      = not stationary
-    local status      = stationary and "stationary" or "moving"
+    local status = table_movementTime.movementstatus
+    local moving = status == "moving"
+    local stationary = status == "stationary"
+    local moving_for = moving and (_now - (table_movementTime.started_moving or _now)) or 0
+    local stationary_for = stationary and (_now - (table_movementTime.started_stationary or _now)) or 0
 
-    local stationary_for = 0
-    local moving_for     = 0
-
-    --if I just reloaded ui or something, pretend I was always doing whatever I'm doing now.
-    if not table_movementTime["movementstatus"] then
-        table_movementTime["movementstatus"]   = status
-        if moving then
-            table_movementTime["started_stationary"] = 0
-            table_movementTime["started_moving"]     = _now
-        else
-            table_movementTime["started_moving"]     = 0
-            table_movementTime["started_stationary"] = _now
-        end
-    end
-
-    --if I was moving, or we don't know what happened 
-    if table_movementTime["movementstatus"] == "moving" then
-        --and I stopped moving
-        if stationary then
-            --handle stopping moving
-            table_movementTime["started_stationary"] = _now
-            --print("stopped moving")
-        else
-            moving_for = _now - table_movementTime["started_moving"]
-        end
-    --if I was stationary
-    else
-        --and I started moving
-        if moving then
-            --handle starting moving
-            table_movementTime["started_moving"] = _now
-            --print("started moving")
-        else
-            stationary_for = _now - table_movementTime["started_stationary"]
-        end
-    end
-
-    table_movementTime["movementstatus"] = status
-    table_movementTime["speed"]          = speed
-
-    return moving,moving_for,stationary,stationary_for,speed
+    return moving,moving_for,stationary,stationary_for,table_movementTime.speed
 end
 
 --local combat, time_in_combat, time_ooc, last_fight_duration = CombatStatus()
@@ -181,9 +180,20 @@ end
 -- before profession/racial spellbook data is fully cached; this ensures it
 -- gets a second, reliable pass.
 function _register:PLAYER_ENTERING_WORLD(event, ...)
+    InitializeMovementState()
     if DetectRacialAndProfessionAbilities then
         DetectRacialAndProfessionAbilities()
     end
+end
+
+
+function _register:PLAYER_STARTED_MOVING(event, ...)
+    SetMovementState(true, nil)
+end
+
+
+function _register:PLAYER_STOPPED_MOVING(event, ...)
+    SetMovementState(false, 0)
 end
 
 

@@ -683,6 +683,7 @@ function _paladin.CoreLogic()
     local role = delphi.override.role or "dps"
     local healing_on = delphi.override.healing ~= false
     local combat = CombatStatus()
+    local _, _, stationary = MovementStatus()
     local tracking_spell = not combat and PreferredTrackingSpell() or nil
 
     if 1 == 0 then
@@ -714,7 +715,7 @@ function _paladin.CoreLogic()
             -- PVE / DD / Healing: heals first, not healer buff defaults.
             if 1 == 0 then
 
-            elseif HEAL_ACTION then
+            elseif HEAL_ACTION and stationary then
                 _global.SetSpellUnit(HEAL_ACTION, "target")
                 acted = true
             end
@@ -901,7 +902,7 @@ function _paladin.CoreLogic()
             -- PVE / AOE / Healing: heals first, not healer buff defaults.
             if 1 == 0 then
 
-            elseif HEAL_ACTION then
+            elseif HEAL_ACTION and stationary then
                 _global.SetSpellUnit(HEAL_ACTION, "target")
                 acted = true
             end
@@ -1089,9 +1090,10 @@ function _paladin.CoreLogic()
             -- PVP / DD / Healing: heals first, not healer buff defaults.
             if 1 == 0 then
                 
-            elseif HEAL_ACTION then
+            elseif HEAL_ACTION and stationary then
                 _global.SetSpellUnit(HEAL_ACTION, "target")
-                acted = true            end
+                acted = true
+            end
         end
         if not acted then
             if 1 == 0 then
@@ -1240,7 +1242,7 @@ function _paladin.CoreLogic()
         if healing_on then
             -- PVP / AOE / Healing: heals first, not healer buff defaults.
             if 1 == 0 then
-            elseif HEAL_ACTION then
+            elseif HEAL_ACTION and stationary then
                 _global.SetSpellUnit(HEAL_ACTION, "target")
                 acted = true
             end

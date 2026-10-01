@@ -171,6 +171,12 @@ end
 -- POST-GENERATION FILTERING
 -- Define keys that should NOT be used as bare keys (without modifiers)
 local bare_key_blacklist = {
+    -- Default party/self target selection
+    ["F1"] = true,
+    ["F2"] = true,
+    ["F3"] = true,
+    ["F4"] = true,
+
     -- Movement and action bar keys
     ["W"] = true,        -- Movement
     ["A"] = true,        -- Movement

@@ -126,6 +126,7 @@ The inbound `follow` whisper command is queued from the sender and requires a de
 |---|---|
 | `W`, `A`, `S`, `D` | Movement |
 | `1`–`4`, `0` | Action bar slots |
+| `F1`–`F4` | Default self/party target selection |
 | `` ` ``, `[`, `]`, `/`, `-`, `;`, `=` | Reserved symbol keys |
 | `M` | World Map |
 | `C` | Character pane |
@@ -383,6 +384,8 @@ end
 
 
 `CastSpellUnits` args: spell, target unit or unit group, a boolean gate (cooldown/state), a table of delegates that must all pass, and an optional **single function** for rank selection. `SpellUnit_CastLoops.lua` determines the exact calling convention; never substitute a table for the rank function.
+
+`MovementStatus()` returns `moving, moving_for, stationary, stationary_for, speed`. It is driven by `PLAYER_STARTED_MOVING` / `PLAYER_STOPPED_MOVING` events so its moving/stationary flags remain usable in combat when `GetUnitSpeed("player")` may be secret. On `PLAYER_ENTERING_WORLD`, Delphi seeds the state from `GetUnitSpeed` only when the value is readable; until either a readable seed or a movement event exists, both flags are false and stationary-only recommendations should fail closed. The fifth return is the normalized speed from the readable seed and becomes nil after a start-moving event (events provide status, not speed).
 
 
 
