@@ -284,6 +284,32 @@ local function SpellKnown(spellName)
     end
 end
 
+local function PaladinSpellKnownForBind(spellName)
+    if not spellName then return false end
+    if C_SpellBook and C_SpellBook.FindSpellBookSlotForSpell then
+        local ok, slot = pcall(C_SpellBook.FindSpellBookSlotForSpell, spellName)
+        if ok and type(slot) == "number" and slot > 0 then return true end
+    end
+
+    if not (C_Spell and C_Spell.GetSpellInfo) then return false end
+    local ok, info = pcall(C_Spell.GetSpellInfo, spellName)
+    if not ok or type(info) ~= "table" or type(info.spellID) ~= "number" then
+        return false
+    end
+
+    local checks = {}
+    if type(IsPlayerSpell) == "function" then checks[#checks + 1] = IsPlayerSpell end
+    if type(IsSpellKnown) == "function" then checks[#checks + 1] = IsSpellKnown end
+    if C_SpellBook and type(C_SpellBook.IsSpellKnown) == "function" then
+        checks[#checks + 1] = C_SpellBook.IsSpellKnown
+    end
+    for _, check in ipairs(checks) do
+        local check_ok, known = pcall(check, info.spellID)
+        if check_ok and known == true then return true end
+    end
+    return false
+end
+
 
 local function GetPaladinSpec()
     if 1 == 0 then
@@ -394,6 +420,495 @@ local function ForeverBlessings_Blessing()
     return nil
 end
 
+local BLESSING_SPELLS = {
+    {normal = _spell.blessing_of_might, greater = _spell.greater_blessing_of_might},
+    {normal = _spell.blessing_of_wisdom, greater = _spell.greater_blessing_of_wisdom},
+    {normal = _spell.blessing_of_kings, greater = _spell.greater_blessing_of_kings},
+    {normal = _spell.blessing_of_salvation, greater = _spell.greater_blessing_of_salvation},
+    {normal = _spell.blessing_of_light, greater = _spell.greater_blessing_of_light},
+}
+
+local RAID_BLESSING_ORDER = {
+    WARRIOR = {1, 3, 4, 5},
+    ROGUE   = {1, 3, 4, 5},
+    PRIEST  = {2, 3, 4, 5},
+    DRUID   = {3, 2, 4, 5},
+    PALADIN = {2, 3, 1, 4, 5},
+    HUNTER  = {1, 3, 4, 2, 5},
+    MAGE    = {3, 2, 4, 5},
+    WARLOCK = {3, 2, 4, 5},
+    SHAMAN  = {2, 3, 4, 1, 5},
+}
+
+local DUNGEON_BLESSING_ORDER = {
+    WARRIOR_TANK   = {3, 1, 5},
+    WARRIOR_DPS    = {1, 3, 4},
+    ROGUE          = {1, 3, 4},
+    PRIEST         = {2, 3, 4},
+    DRUID_BEAR     = {3, 1, 5},
+    DRUID_CAT      = {1, 3, 4},
+    DRUID_BALANCE  = {2, 3, 4},
+    DRUID_RESTO    = {2, 3, 4},
+    PALADIN_HOLY   = {2, 3, 1, 4, 5},
+    PALADIN_PROT   = {2, 3, 1, 4, 5},
+    PALADIN_RET    = {2, 3, 1, 4, 5},
+    HUNTER         = {1, 3, 2},
+    MAGE           = {2, 3, 4},
+    WARLOCK        = {3, 2, 4},
+    SHAMAN_CASTER  = {2, 3, 4},
+    SHAMAN_MELEE   = {1, 3, 2},
+}
+
+local PARTY_SPEC_SKILL = {
+    WARRIOR = {[26] = "arms", [256] = "fury", [257] = "protection"},
+    PALADIN = {[594] = "holy", [267] = "protection", [184] = "retribution"},
+    DRUID = {[574] = "balance", [134] = "feral", [573] = "restoration"},
+    SHAMAN = {[375] = "elemental", [373] = "enhancement", [374] = "restoration"},
+}
+local PARTY_SPEC_NAMES = {
+    arms = "arms", waffen = "arms", fury = "fury", furor = "fury",
+    protection = "protection", schutz = "protection",
+    holy = "holy", heilig = "holy", retribution = "retribution", vergeltung = "retribution",
+    balance = "balance", gleichgewicht = "balance", feral = "feral",
+    ["feral combat"] = "feral", ["wilder kampf"] = "feral",
+    restoration = "restoration", wiederherstellung = "restoration",
+    elemental = "elemental", elementalcombat = "elemental", elementarkampf = "elemental",
+    ["elemental combat"] = "elemental", elementar = "elemental",
+    enhancement = "enhancement", ["verstärkung"] = "enhancement",
+}
+local PARTY_TREE_SPEC = {
+    WARRIOR = {arms = "DPS", fury = "DPS", protection = "TANK"},
+    PALADIN = {holy = "HOLY", protection = "PROT", retribution = "RET"},
+    DRUID = {balance = "BALANCE", restoration = "RESTO"},
+    SHAMAN = {elemental = "CASTER", enhancement = "MELEE", restoration = "CASTER"},
+}
+local PARTY_DEFAULT_SPEC = {
+    WARRIOR = "DPS", DRUID = "RESTO", PALADIN = "HOLY", SHAMAN = "CASTER",
+}
+local PARTY_MIN_TALENT_POINTS = 5
+local party_spec_cache = {}
+local party_spec_retry = {}
+local party_inspect_pending
+local party_inspect_after = 0
+local EnoughManaForSpell
+
+local function PartySafeCall(fn, ...)
+    if type(fn) ~= "function" then return nil end
+    local ok, a, b = pcall(fn, ...)
+    if ok then return a, b end
+end
+
+local function PartyPlainValue(value, kind)
+    if type(issecretvalue) == "function" then
+        local ok, secret = pcall(issecretvalue, value)
+        if not ok or secret then return false end
+    end
+    return type(value) == kind
+end
+
+local function PartyTreeSpec(class, group)
+    local by_skill = PARTY_SPEC_SKILL[class]
+    if by_skill and by_skill[group.skillLineID] then
+        return by_skill[group.skillLineID]
+    end
+    if PartyPlainValue(group.displayName, "string") then
+        local name = string.lower(group.displayName)
+        return PARTY_SPEC_NAMES[name] or PARTY_SPEC_NAMES[name:gsub("%s", "")]
+    end
+end
+
+local function PartyReadTalentGroups(config_id, class)
+    if not C_Traits or not config_id then return nil end
+    local config = PartySafeCall(C_Traits.GetConfigInfo, config_id)
+    if not config or type(config.treeIDs) ~= "table" or #config.treeIDs == 0 then return nil end
+    if config_id ~= -1 and PartySafeCall(C_Traits.ConfigHasStagedChanges, config_id) then return nil end
+
+    local groups, by_id = {}, {}
+    for _, tree_id in ipairs(config.treeIDs) do
+        local displays = PartySafeCall(C_Traits.GetGroupDisplayInfoByTreeID, tree_id) or {}
+        for _, display in ipairs(displays) do
+            if display.groupID and not by_id[display.groupID] then
+                local group = {
+                    groupID = display.groupID,
+                    skillLineID = display.skillLineID,
+                    displayName = display.displayName,
+                    points = 0,
+                }
+                group.spec = PartyTreeSpec(class, group)
+                by_id[group.groupID] = group
+                groups[#groups + 1] = group
+            end
+        end
+        for _, node_id in ipairs(PartySafeCall(C_Traits.GetTreeNodes, tree_id) or {}) do
+            local node = PartySafeCall(C_Traits.GetNodeInfo, config_id, node_id)
+            local ranks = node and node.ranksPurchased
+            if PartyPlainValue(ranks, "number") and ranks > 0 then
+                for _, group_id in ipairs(node.groupIDs or {}) do
+                    local group = by_id[group_id]
+                    if group then
+                        group.points = group.points + ranks
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    if #groups == 0 then return nil end
+    local ids = {}
+    for _, group in ipairs(groups) do ids[#ids + 1] = group.groupID end
+    for _, counter in ipairs(PartySafeCall(C_Traits.GetGroupCurrencyInfo, config_id, ids) or {}) do
+        local group = by_id[counter.traitNodeGroupID]
+        local currency = counter.currencyInfos and counter.currencyInfos[1]
+        if group and currency and PartyPlainValue(currency.spent, "number") then
+            group.points = currency.spent
+        end
+    end
+    return groups
+end
+
+local function PartyBucketFromGroups(class, groups, role)
+    local best, tied
+    for _, group in ipairs(groups or {}) do
+        if group.points > 0 then
+            if not best or group.points > best.points then
+                best, tied = group, false
+            elseif group.points == best.points then
+                tied = true
+            end
+        end
+    end
+    if not best or tied or best.points < PARTY_MIN_TALENT_POINTS or not best.spec then return nil end
+
+    local spec = PARTY_TREE_SPEC[class] and PARTY_TREE_SPEC[class][best.spec]
+    if not spec and class == "DRUID" and best.spec == "feral" then
+        spec = role == "TANK" and "BEAR" or "CAT"
+    end
+    return spec
+end
+
+local function PartyUnitRole(unit)
+    local role = PartySafeCall(UnitGroupRolesAssigned, unit)
+    if PartyPlainValue(role, "string") and role ~= "NONE" then return role end
+end
+
+local function PartyFallbackSpec(unit, class)
+    local role = PartyUnitRole(unit)
+    if class == "WARRIOR" then
+        return role == "TANK" and "TANK" or "DPS"
+    elseif class == "DRUID" then
+        if role == "TANK" then return "BEAR" end
+        if role == "DAMAGER" then return "CAT" end
+        return "RESTO"
+    elseif class == "PALADIN" then
+        if role == "TANK" then return "PROT" end
+        if role == "DAMAGER" then return "RET" end
+        return "HOLY"
+    elseif class == "SHAMAN" then
+        return role == "DAMAGER" and "MELEE" or "CASTER"
+    end
+    return PARTY_DEFAULT_SPEC[class]
+end
+
+local function PartyBucketForUnit(unit, class)
+    local FB = _G.ForeverBlessings
+    if FB and type(FB.members) == "table" and type(FB.BUCKETS) == "table" then
+        for _, member in ipairs(FB.members) do
+            if type(member) == "table" and member.unit == unit
+                and member.bucket and FB.BUCKETS[member.bucket] then
+                local bucket = FB.BUCKETS[member.bucket]
+                if bucket.class == class then return bucket.spec end
+            end
+        end
+    end
+
+    local guid = PartySafeCall(UnitGUID, unit)
+    local cached = guid and party_spec_cache[guid]
+    if cached and cached.class == class and cached.spec then return cached.spec end
+    return PartyFallbackSpec(unit, class)
+end
+
+local function PartyTargetSpec(unit, class)
+    local spec = PartyBucketForUnit(unit, class)
+    if class == "WARRIOR" or class == "DRUID" or class == "PALADIN" or class == "SHAMAN" then
+        return spec or PARTY_DEFAULT_SPEC[class]
+    end
+    return nil
+end
+
+local function PartyResolveTalentSpec(config_id, class, unit)
+    local groups = PartyReadTalentGroups(config_id, class)
+    if not groups then return nil end
+    return PartyBucketFromGroups(class, groups, PartyUnitRole(unit))
+end
+
+local function PartyInspectReady(guid)
+    local pending = party_inspect_pending
+    if not pending or not PartyPlainValue(guid, "string") or pending.guid ~= guid then return end
+    party_inspect_pending = nil
+    local inspect_config = Constants and Constants.TraitConsts
+        and Constants.TraitConsts.INSPECT_TRAIT_CONFIG_ID or -1
+    local ok, spec = pcall(PartyResolveTalentSpec, inspect_config, pending.class, pending.unit)
+    if ok and spec then
+        party_spec_cache[guid] = {class = pending.class, spec = spec, time = GetTime()}
+    else
+        party_spec_retry[guid] = GetTime() + 10
+    end
+end
+
+local function PartyInspectTick()
+    if _G.ForeverBlessings or InCombatLockdown() or GetTime() < party_inspect_after then return end
+    if party_inspect_pending then
+        if GetTime() - party_inspect_pending.started < 6 then return end
+        party_spec_retry[party_inspect_pending.guid] = GetTime() + 10
+        party_inspect_pending = nil
+    end
+    if (InspectFrame and InspectFrame:IsShown())
+        or (PlayerSpellsFrame and PartySafeCall(PlayerSpellsFrame.IsInspecting, PlayerSpellsFrame))
+        or type(NotifyInspect) ~= "function" then return end
+
+    for _, unit in ipairs(_unitids.party) do
+        if UnitExists(unit) then
+            local _, class = UnitClass(unit)
+            if PARTY_TREE_SPEC[class] then
+                local guid = PartySafeCall(UnitGUID, unit)
+                local cached = guid and party_spec_cache[guid]
+                if guid and (not cached or GetTime() - cached.time > 60)
+                    and GetTime() >= (party_spec_retry[guid] or 0)
+                    and PartySafeCall(UnitIsConnected, unit)
+                    and PartySafeCall(CanInspect, unit) then
+                    party_inspect_pending = {
+                        unit = unit, guid = guid, class = class, started = GetTime(),
+                    }
+                    party_inspect_after = GetTime() + 2
+                    local ok = pcall(NotifyInspect, unit)
+                    if not ok then
+                        party_spec_retry[guid] = GetTime() + 10
+                        party_inspect_pending = nil
+                    end
+                    return
+                end
+            end
+        end
+    end
+end
+
+local party_spec_frame = CreateFrame("Frame")
+party_spec_frame:RegisterEvent("INSPECT_READY")
+party_spec_frame:RegisterEvent("PLAYER_LOGIN")
+party_spec_frame:SetScript("OnEvent", function(_, event, ...)
+    if event == "INSPECT_READY" then
+        PartyInspectReady(...)
+    elseif event == "PLAYER_LOGIN" then
+        C_Timer.NewTicker(1, PartyInspectTick)
+    end
+end)
+
+local function PartySpellKnown(spell_name)
+    if not spell_name then return false end
+    if C_SpellBook and C_SpellBook.FindSpellBookSlotForSpell then
+        local ok, slot = pcall(C_SpellBook.FindSpellBookSlotForSpell, spell_name)
+        if ok and PartyPlainValue(slot, "number") then return true end
+    end
+    local info
+    if C_Spell and C_Spell.GetSpellInfo then
+        local ok, result = pcall(C_Spell.GetSpellInfo, spell_name)
+        if ok and type(result) == "table" then info = result end
+    end
+    if info and PartyPlainValue(info.spellID, "number") then
+        local checks = {}
+        if type(_G.IsPlayerSpell) == "function" then checks[#checks + 1] = _G.IsPlayerSpell end
+        if type(_G.IsSpellKnown) == "function" then checks[#checks + 1] = _G.IsSpellKnown end
+        if C_SpellBook and type(C_SpellBook.IsSpellKnown) == "function" then
+            checks[#checks + 1] = C_SpellBook.IsSpellKnown
+        end
+        for _, check in ipairs(checks) do
+            local ok, known = pcall(check, info.spellID)
+            if ok and PartyPlainValue(known, "boolean") and known then return true end
+        end
+    end
+    return false
+end
+
+local function PartyBlessingName(index, use_greater)
+    local blessing = BLESSING_SPELLS[index]
+    if not blessing then return nil end
+    if use_greater and PartySpellKnown(blessing.greater) then return blessing.greater end
+    if PartySpellKnown(blessing.normal) then return blessing.normal end
+    return nil
+end
+
+local PALADIN_BLESSING_PRIORITY = {2, 3, 1, 4, 5}
+
+local function AutomaticBlessing()
+    local assigned = ForeverBlessings_Blessing()
+    if assigned and PartySpellKnown(assigned) then return assigned end
+
+    for _, index in ipairs(PALADIN_BLESSING_PRIORITY) do
+        local spell_name = PartyBlessingName(index, false)
+        if spell_name then return spell_name end
+    end
+end
+
+local function BlessingIndex(spell_name)
+    for index, variants in ipairs(BLESSING_SPELLS) do
+        if spell_name == variants.normal or spell_name == variants.greater then
+            return index
+        end
+    end
+end
+
+local function SelfBlessingChoice(preferred)
+    if not preferred or preferred == false or not PartySpellKnown(preferred) then
+        return preferred
+    end
+    if InCombatLockdown() then return preferred end
+
+    local preferred_index = BlessingIndex(preferred)
+    if not preferred_index then return preferred end
+
+    local preferred_spells = BLESSING_SPELLS[preferred_index]
+    if RemainingBuffFromMe(preferred_spells.normal, "player") > 0
+        or RemainingBuffFromMe(preferred_spells.greater, "player") > 0 then
+        return preferred
+    end
+
+    local preferred_active = RemainingBuff(preferred_spells.normal, "player") > 0
+        or RemainingBuff(preferred_spells.greater, "player") > 0
+    if not preferred_active then
+        return preferred
+    end
+
+    -- The selected blessing is supplied by someone else. Once this Paladin
+    -- has supplied any blessing from the fallback priority, keep it instead
+    -- of walking to the next missing blessing on every recommendation tick.
+    for _, index in ipairs(PALADIN_BLESSING_PRIORITY) do
+        local variants = BLESSING_SPELLS[index]
+        if RemainingBuffFromMe(variants.normal, "player") > 0
+            or RemainingBuffFromMe(variants.greater, "player") > 0 then
+            return nil
+        end
+    end
+
+    for _, index in ipairs(PALADIN_BLESSING_PRIORITY) do
+        local variants = BLESSING_SPELLS[index]
+        local spell_name = PartyBlessingName(index, false)
+        if spell_name and RemainingBuff(variants.normal, "player") == 0
+            and RemainingBuff(variants.greater, "player") == 0 then
+            return spell_name
+        end
+    end
+end
+
+local function PartyAssignedBlessing(unit, class, spec)
+    local FB = _G.ForeverBlessings
+    if type(FB) ~= "table" or type(FB.rows) ~= "table"
+        or type(FB.me) ~= "string" or type(FB.Mode) ~= "function"
+        or type(FB.Values) ~= "function" then return nil end
+    local row = FB.rows[FB.me]
+    if not row then return nil end
+
+    local ok, assigned, use_greater, mode = pcall(function()
+        local mode = FB:Mode()
+        local column
+        if mode == "raid" then
+            for i, class_name in ipairs(FB.CLASSES or {}) do
+                if class_name == class then column = i break end
+            end
+        else
+            for _, member in ipairs(FB.members or {}) do
+                if member.unit == unit and member.bucket then
+                    column = member.bucket
+                    break
+                end
+            end
+            if not column and type(FB.BUCKETS) == "table" then
+                for i, bucket in ipairs(FB.BUCKETS) do
+                    if bucket.class == class and bucket.spec == spec then
+                        column = i
+                        break
+                    end
+                end
+            end
+        end
+        if not column then return nil, mode == "raid", mode end
+        local values = FB:Values(row, mode)
+        local index = values and values[column]
+        if PartyPlainValue(index, "number") and index > 0 then
+            return index, mode == "raid", mode
+        end
+        return nil, mode == "raid", mode
+    end)
+    if ok then return assigned, use_greater, mode end
+end
+
+local function PartyBlessingExpired(index, unit)
+    local variants = BLESSING_SPELLS[index]
+    if not variants then return false end
+    return RemainingBuff(variants.normal, unit) == 0
+        and RemainingBuff(variants.greater, unit) == 0
+end
+
+local function PartyBlessingTargetInRange(spell, unit)
+    local connected = PartySafeCall(UnitIsConnected, unit)
+    if PartyPlainValue(connected, "boolean") and not connected then return false end
+    local visible = PartySafeCall(UnitIsVisible, unit)
+    if PartyPlainValue(visible, "boolean") and not visible then return false end
+
+    local in_range = C_Spell and PartySafeCall(C_Spell.IsSpellInRange, spell, unit)
+    if PartyPlainValue(in_range, "boolean") then return in_range end
+    local checked_range, checked = PartySafeCall(UnitInRange, unit)
+    if PartyPlainValue(checked_range, "boolean")
+        and PartyPlainValue(checked, "boolean") and checked then
+        return checked_range
+    end
+    return true
+end
+
+local party_cast_unit = {}
+
+local function OfferPartyBlessing()
+    if InCombatLockdown() or not IsInGroup() then return false end
+
+    for _, unit in ipairs(_unitids.party) do
+        if UnitExists(unit) then
+            local _, class = UnitClass(unit)
+            if class and class ~= "" then
+                local spec = PartyTargetSpec(unit, class)
+                local key = spec and (class .. "_" .. spec) or class
+                local assigned, assigned_greater, mode = PartyAssignedBlessing(unit, class, spec)
+                local raid_mode = mode == "raid" or (not mode and IsInRaid())
+                local orders = raid_mode and RAID_BLESSING_ORDER or DUNGEON_BLESSING_ORDER
+                local order = assigned and {assigned}
+                    or orders[key]
+                    or orders[class]
+                local selected
+                local use_greater = assigned and assigned_greater or (not assigned and raid_mode)
+                for _, index in ipairs(order or {}) do
+                    if PartyBlessingName(index, use_greater) then
+                        selected = index
+                        break
+                    end
+                end
+                local spell_name = selected and PartyBlessingName(selected, use_greater)
+                if spell_name and PartyBlessingExpired(selected, unit) then
+                    party_cast_unit[1] = unit
+                    if CastSpellUnits(
+                        spell_name,
+                        party_cast_unit,
+                        RemainingCooldown(spell_name) < 0.5
+                            and EnoughManaForSpell(spell_name)
+                            and not InCombatLockdown(),
+                        {SpellUnit_AliveAndFriendly, PartyBlessingTargetInRange}
+                    ) then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
 
 --==========================================================================
 -- Override resolver - three states, plus an optional ForeverBlessings
@@ -491,6 +1006,29 @@ function _paladin.SetBinds()
     end
     bind_once = 1
 
+    -- Dedicated manual Paladin controls; these intentionally override the
+    -- client's default F/Q actions and are not Delphi rotation candidates.
+    CreateButton(
+        "DelphiPaladinHammerOfJusticeManual",
+        "F",
+        "/cast [@target,harm] " .. _spell.hammer_of_justice
+    )
+
+    local cleanse_spell
+    if PaladinSpellKnownForBind(_spell.cleanse) then
+        cleanse_spell = _spell.cleanse
+    elseif PaladinSpellKnownForBind(_spell.purify) then
+        cleanse_spell = _spell.purify
+    else
+        print("Paladin Q bind not created: neither Cleanse nor Purify is known.")
+    end
+    if cleanse_spell then
+        CreateButton(
+            "DelphiPaladinCleanseManual",
+            "Q",
+            "/cast [@target,help][] " .. cleanse_spell
+        )
+    end
 
     BindSpellToUnit("start_attack","","","/startattack",true)
     -- Role and Healing are selected in the Delphi toggle UI.
@@ -527,6 +1065,23 @@ function _paladin.SetBinds()
     BindSpellToUnits(_spell.greater_blessing_of_kings, _unitids.player)
     BindSpellToUnits(_spell.greater_blessing_of_salvation, _unitids.player)
     BindSpellToUnits(_spell.greater_blessing_of_light, _unitids.player)
+
+    -- Party blessing recommendations need a spell/unit bind for each party slot.
+    local party_blessings = {
+        _spell.blessing_of_might,
+        _spell.blessing_of_wisdom,
+        _spell.blessing_of_kings,
+        _spell.blessing_of_salvation,
+        _spell.blessing_of_light,
+        _spell.greater_blessing_of_might,
+        _spell.greater_blessing_of_wisdom,
+        _spell.greater_blessing_of_kings,
+        _spell.greater_blessing_of_salvation,
+        _spell.greater_blessing_of_light,
+    }
+    for _, blessing in ipairs(party_blessings) do
+        BindSpellToUnits(blessing, _unitids.party)
+    end
 
     --Offense - standard hostile fallback chain
     BindSpellToUnits(_spell.judgement,             _unitids.standard_hostile)
@@ -586,7 +1141,7 @@ end
 --=================================================================
 -- Spell usability is checked without comparing secret mana values.
 -- If the API fails or returns a secret result, do not attempt the cast.
-local function EnoughManaForSpell(spell)
+EnoughManaForSpell = function(spell)
     if not C_Spell or not C_Spell.IsSpellUsable then
         return false
     end
@@ -609,9 +1164,80 @@ end
 
 -- The selected role owns these defaults even when Healing is On.
 -- Role Off uses healer defaults when Healing is On.
+local AURA_PRIORITY = {
+    _spell.retribution_aura,
+    _spell.devotion_aura,
+    _spell.concentration_aura,
+    _spell.shadow_resistance_aura,
+    _spell.frost_resistance_aura,
+    _spell.fire_resistance_aura,
+}
+local aura_fallback_preference
+local aura_fallback_choice
+
+local function AuraActiveFromMe(aura)
+    return RemainingBuffFromMe(aura, "player") ~= 0
+end
+
+local function AutomaticAura()
+    for _, aura in ipairs(AURA_PRIORITY) do
+        if PartySpellKnown(aura) then return aura end
+    end
+end
+
+local function SelfAuraChoice(preferred)
+    if not preferred or preferred == false or not PartySpellKnown(preferred) then
+        aura_fallback_preference = nil
+        aura_fallback_choice = nil
+        return preferred
+    end
+    if aura_fallback_preference ~= preferred then
+        aura_fallback_preference = preferred
+        aura_fallback_choice = nil
+    end
+
+    if InCombatLockdown() then return preferred end
+
+    if AuraActiveFromMe(preferred) then
+        aura_fallback_choice = nil
+        return preferred
+    end
+
+    local preferred_remaining = RemainingBuff(preferred, "player")
+    if preferred_remaining == 0 then
+        aura_fallback_choice = nil
+        return preferred
+    end
+
+    if aura_fallback_choice then
+        if AuraActiveFromMe(aura_fallback_choice) then
+            return nil
+        end
+        return aura_fallback_choice
+    end
+
+    -- If another Paladin supplies the preferred Aura to this player, retain
+    -- a self-cast alternative rather than switching as aura updates settle.
+    for _, aura in ipairs(AURA_PRIORITY) do
+        if aura ~= preferred and AuraActiveFromMe(aura) then
+            aura_fallback_choice = aura
+            return nil
+        end
+    end
+
+    for _, aura in ipairs(AURA_PRIORITY) do
+        if aura ~= preferred and PartySpellKnown(aura)
+            and RemainingBuff(aura, "player") == 0 then
+            aura_fallback_choice = aura
+            return aura
+        end
+    end
+    return nil
+end
+
 local function RoleOverrides(role, context)
-    local auto_aura = _spell.retribution_aura
-    local auto_blessing = _spell.blessing_of_wisdom
+    local auto_aura = AutomaticAura()
+    local auto_blessing = AutomaticBlessing()
     local auto_seal, auto_debuffseal
     if 1 == 0 then
     elseif role == "main_tank" then
@@ -629,9 +1255,12 @@ local function RoleOverrides(role, context)
     else
         return false, false, false, false
     end
-    return ResolveOverride(delphi.override.aura, auto_aura, ForeverBlessings_Aura),
+    local blessing = ResolveOverride(
+        delphi.override.blessing, auto_blessing, ForeverBlessings_Blessing)
+    return SelfAuraChoice(ResolveOverride(
+        delphi.override.aura, auto_aura, ForeverBlessings_Aura)),
         ResolveOverride(delphi.override.seal, auto_seal),
-        ResolveOverride(delphi.override.blessing, auto_blessing, ForeverBlessings_Blessing),
+        SelfBlessingChoice(blessing),
         ResolveOverride(delphi.override.debuffseal, auto_debuffseal)
 end
 
@@ -876,6 +1505,9 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true    
 
+                elseif OfferPartyBlessing() then
+                    acted = true
+
                 elseif blessing and CastSpellUnits(
                     blessing
                     ,_unitids.player
@@ -920,6 +1552,9 @@ function _paladin.CoreLogic()
                     acted = true    
 
 
+                elseif OfferPartyBlessing() then
+                    acted = true
+
                 elseif blessing and CastSpellUnits(
                     blessing
                     ,_unitids.player
@@ -948,6 +1583,9 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
+
+                elseif OfferPartyBlessing() then
+                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1003,6 +1641,9 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
+
+                elseif OfferPartyBlessing() then
+                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1085,6 +1726,9 @@ function _paladin.CoreLogic()
                     acted = true    
 
 
+                elseif OfferPartyBlessing() then
+                    acted = true
+
                 elseif blessing and CastSpellUnits(
                     blessing
                     ,_unitids.player
@@ -1129,6 +1773,9 @@ function _paladin.CoreLogic()
                     acted = true    
                   
 
+                elseif OfferPartyBlessing() then
+                    acted = true
+
                 elseif blessing and CastSpellUnits(
                     blessing
                     ,_unitids.player
@@ -1157,6 +1804,9 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
+
+                elseif OfferPartyBlessing() then
+                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1212,6 +1862,9 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
+
+                elseif OfferPartyBlessing() then
+                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1294,6 +1947,9 @@ function _paladin.CoreLogic()
                     acted = true    
 
 
+                elseif OfferPartyBlessing() then
+                    acted = true
+
                 elseif blessing and CastSpellUnits(
                     blessing
                     ,_unitids.player
@@ -1330,6 +1986,9 @@ function _paladin.CoreLogic()
                 --     ,{ SpellUnit_AliveAndFriendly, SpellUnit_BuffExpired }
                 -- ) then
                 --     acted = true
+
+                elseif OfferPartyBlessing() then
+                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1386,6 +2045,9 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
+
+                elseif OfferPartyBlessing() then
+                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1467,6 +2129,9 @@ function _paladin.CoreLogic()
                     acted = true    
 
 
+                elseif OfferPartyBlessing() then
+                    acted = true
+
                 elseif blessing and CastSpellUnits(
                     blessing
                     ,_unitids.player
@@ -1495,6 +2160,9 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
+
+                elseif OfferPartyBlessing() then
+                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
@@ -1551,6 +2219,9 @@ function _paladin.CoreLogic()
                 ) then
                     acted = true
 
+
+                elseif OfferPartyBlessing() then
+                    acted = true
 
                 elseif blessing and CastSpellUnits(
                     blessing
