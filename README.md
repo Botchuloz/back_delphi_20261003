@@ -537,7 +537,7 @@ The Paladin override pattern uses `0`/nil for Auto, `false` for Disabled, a spel
 
 The selected Role supplies the automatic aura, ordinary Seal, blessing, and Judgement Seal defaults even when Healing is On; Role Off with Healing On uses the healer-oriented defaults. Auto Seal pairs are: PvE main tank Fury/Crusader, PvP main tank Justice/Crusader, PvE off tank Righteousness/Crusader, DPS Command/Crusader, and Role Off Wisdom/Wisdom (ordinary Seal/Judgement Seal). The ordinary Seal and Judgement Seal are resolved independently.
 
-Delphi prebuilds role-rotation macros for each available pair, named `DelphiPaladin<Role>_Judgement<Choice>_Seal<Choice>`, and the rotation recommends the macro matching the resolved pair. For example, the DPS macro for Judgement of Wisdom with Seal of Command is `DelphiPaladinDPSSequence_JudgementWisdom_SealCommand`. The three attack roles × six Judgement-Seal states (five choices plus Disabled) × eight ordinary-Seal states (seven choices plus Disabled) use 144 allocator keys. Healing retains one separate heal-only macro and one allocator key; it does not consume Seal-pair variants.
+Delphi prebuilds role-rotation macros for each available pair, named `DelphiPaladin<Role>_Judgement<Choice>_Seal<Choice>`, and the rotation recommends the macro matching the resolved pair. For example, the DPS macro for Judgement of Wisdom with Seal of Command is `DelphiPaladinDPSSequence_JudgementWisdom_SealCommand`. The three attack roles × six Judgement-Seal states (five choices plus Disabled) × eight ordinary-Seal states (seven choices plus Disabled) use 144 allocator keys. An additional 24 macros omit only Judgement of Justice when the target is not confirmed Humanoid (three roles × eight ordinary-Seal states); the seal setup and other role-rotation actions remain. In total, the generated role macros use 168 allocator keys. Healing retains one separate heal-only macro and one allocator key.
 
 The Judgement Seal is applied before Judgement to produce that Judgement effect; when a different ordinary Seal is enabled, the macro then applies it for the remaining rotation. A matching ordinary Seal is not recast because Judgement does not consume the active Seal. If the Judgement Seal is Disabled, the macro skips the Judgement setup and applies only the ordinary Seal. If the ordinary Seal is Disabled, the Judgement Seal remains active after the opening Judgement. DPS and off-tank macros omit subsequent Judgement casts when there is no different ordinary Seal to use. Both Disabled means neither Seal nor Judgement is cast by the macro. Healing remains the existing Flash of Light-only macro while Healing On takes priority; the selected Seal pair is used again when the role rotation resumes.
 
@@ -553,11 +553,40 @@ WoWF's secure execution environment can produce "secret values" (protected/taint
 
 
 
-A prior Paladin helper crashed at an explicit `UnitPower("player", 0) < cost` comparison in combat (`attempt to compare a secret number value`). The replacement calls `C_Spell.IsSpellUsable(spell)` behind `pcall` and fails closed if the call errors or its results are secret. That avoids the specific mana-comparison crash. It has **not** been established that `C_Spell.IsSpellUsable()` returns accessible results in every WoWF combat state; lack of output after a fix requires testing the actual gate rather than assuming it passed.
+A prior Paladin helper crashed at an explicit `UnitPower("player", 0) < cost` comparison in combat (`attempt to compare a secret number value`). The replacement calls `C_Spell.IsSpellUsable(spell)` behind `pcall` and fails closed if the call errors or its results are secret. That avoids the specific mana-comparison crash. For Exorcism specifically, the user tested `C_Spell.IsSpellUsable("Exorcism")` out of combat, in combat, and while on cooldown; it consistently returned `true, false`, so it cannot be used as an Exorcism cooldown gate on this client.
 
 
 
 Do not "fix" a secret-value crash by forcing a cast or treating an unreadable number as zero. Record the exact WoWF state and API return behavior, then use only a documented, verified alternative.
+
+### WoWF secret-value test log
+
+These results are empirical WoW Forever tests, not guarantees for every game state or API restriction. Retest a value in the context where Delphi will use it before adding comparisons or arithmetic.
+
+| Value/API | Tested context | Observed result |
+| --- | --- | --- |
+| `GetUnitSpeed("player")` | Out of combat, standing/moving | Readable: `0` standing and `7` moving in the user's test. |
+| `GetUnitSpeed("player")` | In combat, standing/moving | Secret in both states in the user's test; do not compare or calculate with it. |
+| `PLAYER_STARTED_MOVING` / `PLAYER_STOPPED_MOVING` | In combat | Both events fired in the user's test; use event-maintained movement state rather than combat speed. |
+| `CombatStatus()` combat flag and `time_in_combat` | Out of combat and during one combat | Readable in the guarded test: `false, 0`, then `true, 3.997`, then `true, 13.75`. Timer increased during combat. |
+| `UnitCreatureType("target")` name and creature-type ID | Beast target; Humanoid and Undead targets in and out of combat | Returned readable `Beast, 1`, `Humanoid, 7`, and `Undead, 6`; Humanoid and Undead were each confirmed readable both in and out of combat. Demon target not yet tested. The ID is preferable for locale-independent comparisons if readable. |
+| `C_Spell.IsSpellInRange(10318, "target")` (Holy Wrath) | In and out of combat; target range varied | Returned `nil` (`UNKNOWN`) in every test. Holy Wrath is an AoE and the user expects to be in melee range when using it, so this target-range check is not needed for its intended gate. |
+| `C_Spell.IsSpellInRange(415073, "target")` (Exorcism) | In and out of combat; target type/visibility not recorded | Returned `nil` (`UNKNOWN`) in every test. This did not establish range; the spell-ID form was not useful in this client. |
+| `C_Spell.IsSpellInRange("Exorcism", "target")` | Out of combat, target at different distances; in combat, in range | Returned readable `OUT OF RANGE`, then `IN RANGE` out of combat, and `IN RANGE` in combat. Use the localized spell-name form with a valid target. |
+| `IsSpellInRange` legacy API | Out of combat | `IsSpellInRange` was `nil` (not available) in the user's client; the attempted legacy Exorcism range call therefore errored before checking the target. |
+| `C_Spell.GetSpellCooldown("Exorcism")` `startTime` and `duration` | Out of combat; in combat before and after casting | Readable as `0, 0` out of combat; both were secret in combat before casting and after casting. |
+| `C_Spell.IsSpellUsable("Exorcism")` | In and out of combat, including while on cooldown | Always returned `true, false` in the user's tests; it does not indicate Exorcism's cooldown in this client. |
+| Exorcism rotation recommendation | Against a Wolf and an Undead | A Wolf did not activate the Exorcism recommendation; an Undead did. Delphi initially stayed on Exorcism after the cast. Resolving spell names from player `UNIT_SPELLCAST_SENT` and `UNIT_SPELLCAST_SUCCEEDED` events fixed the repeated recommendation; the user confirmed the normal sequence becomes available again. |
+
+Paladin's Judgement of Justice rotation now uses the confirmed creature-type ID `7` as a Humanoid check. If the target type is unavailable, secret, or not Humanoid, the selected role macro keeps its Seal setup and other rotation actions but omits Judgement of Justice.
+
+The older Icarus Paladin logic recommended Exorcism against the current target when it was alive/hostile, in range, spell-ready, and Undead or Demon. Its `su_in_range` uses the legacy `IsSpellInRange(spell, unit) == 1` API; do not copy that call into this modern client. Delphi's `SpellUnit_RangeCheck` uses `C_Spell.IsSpellInRange(spell, unit) == true`; the localized-name form was confirmed in and out of combat, including both in-range and out-of-range results.
+
+Delphi offers Holy Wrath on the player after more than 10 seconds in combat, while stationary, for attack roles only, when the current target is alive/hostile and its readable creature-type ID is Undead (`6`) or Demon (`3`). It has no target-range gate because Holy Wrath is an AoE and the player expects to be in melee range. Its cooldown gate fails closed if cooldown data is missing or secret.
+
+Exorcism is currently offered in combat after at least 3 seconds, for attack roles only, on the current target when the target is alive/hostile, its readable creature-type ID is Undead (`6`) or Demon (`3`), and the name-based range check passes. The client hides Exorcism cooldown data in combat, and `C_Spell.IsSpellUsable` reports usable even while it is on cooldown. Delphi listens for player `UNIT_SPELLCAST_SENT` and `UNIT_SPELLCAST_SUCCEEDED`, resolves the event's spell ID to its name, and starts a 15-second local wait when the name is Exorcism. This event/name-based timer fixed the repeated recommendation on the Undead target; the user confirmed the normal sequence is available again. The 15-second interval is based on the reported standard cooldown and has not been separately timed by the user. `EnoughManaForSpell` remains an additional gate. Holy Wrath retains its more-than-10-second threshold and its dedicated fail-closed cooldown check; its spell recommendation still needs in-game validation. Both candidates are after the stationary healing action and before the role rotation, so healing retains priority; after Exorcism is offered/cast, the role macro can be recommended during its locally tracked wait.
+
+For every probe, check each returned value with `issecretvalue` before comparing it, doing arithmetic, or using it as a boolean. Put the API call in `pcall` to distinguish a Lua error from a secret return; `pcall` does not make a secret value readable.
 
 
 

@@ -133,8 +133,25 @@ local SEAL_VARIANTS = {
 }
 
 local role_rotation_actions = {}
+local no_justice_judgement_actions = {}
+local last_exorcism_cast
 
-local function RoleRotationActionName(role, debuffseal, seal)
+local function TargetIsHumanoidForJustice()
+    local ok, _, creature_type_id = pcall(UnitCreatureType, "target")
+    if not ok or creature_type_id == nil
+        or (issecretvalue and issecretvalue(creature_type_id)) then
+        return false
+    end
+
+    return creature_type_id == 7
+end
+
+local function ShouldSkipJusticeJudgement(debuffseal)
+    return debuffseal == _spell.seal_of_justice
+        and not TargetIsHumanoidForJustice()
+end
+
+local function RoleRotationActionName(role, debuffseal, seal, skip_justice_judgement)
     local role_config = ROLE_ROTATION_MACROS[role]
     if not role_config then
         return nil
@@ -160,15 +177,22 @@ local function RoleRotationActionName(role, debuffseal, seal)
         return nil
     end
 
-    return "DelphiPaladin" .. role_config.name
+    local action = "DelphiPaladin" .. role_config.name
         .. "_Judgement" .. debuff_name .. "_Seal" .. seal_name
+    if skip_justice_judgement then
+        action = action .. "_NoJusticeJudgement"
+    end
+    return action
 end
 
-local function CreateRoleRotationMacro(role, debuffseal, seal)
+local function CreateRoleRotationMacro(role, debuffseal, seal, skip_justice_judgement)
     local lines = {"/startattack"}
 
     if debuffseal then
-        local sequence = debuffseal .. ",judgement"
+        local sequence = debuffseal
+        if not skip_justice_judgement then
+            sequence = sequence .. ",judgement"
+        end
         if seal and seal ~= debuffseal then
             sequence = sequence .. "," .. seal
         end
@@ -184,7 +208,8 @@ local function CreateRoleRotationMacro(role, debuffseal, seal)
         lines[#lines + 1] = "/castsequence [combat] consecration"
     else
         lines[#lines + 1] = "/castsequence [@target,harm] Holy Strike"
-        if debuffseal and seal and seal ~= debuffseal then
+        if debuffseal and seal and seal ~= debuffseal
+            and not skip_justice_judgement then
             lines[#lines + 1] = "/castsequence [@target,harm] judgement"
         end
         if role == "off_tank" then
@@ -213,6 +238,26 @@ local function BindRoleRotationMacros()
                 )
                 role_rotation_actions[role][debuff_variant.spell][seal_variant.spell] = action
                 BindSpellToUnit(action, "target", macro, "", true)
+
+                if debuff_variant.spell == _spell.seal_of_justice then
+                    local fallback_action = RoleRotationActionName(
+                        role,
+                        debuff_variant.spell,
+                        seal_variant.spell,
+                        true
+                    )
+                    local fallback_macro = CreateRoleRotationMacro(
+                        role,
+                        debuff_variant.spell,
+                        seal_variant.spell,
+                        true
+                    )
+                    no_justice_judgement_actions[role] =
+                        no_justice_judgement_actions[role] or {}
+                    no_justice_judgement_actions[role][seal_variant.spell] =
+                        fallback_action
+                    BindSpellToUnit(fallback_action, "target", fallback_macro, "", true)
+                end
             end
         end
     end
@@ -595,6 +640,10 @@ local function OfferRoleRotation(role, debuffseal, seal)
     local by_debuffseal = role_rotation_actions[role]
     local by_seal = by_debuffseal and by_debuffseal[debuffseal]
     local action = by_seal and by_seal[seal]
+    if ShouldSkipJusticeJudgement(debuffseal) then
+        action = no_justice_judgement_actions[role]
+            and no_justice_judgement_actions[role][seal]
+    end
     if not action or not delphi.bind.spellunit_to_keycombo[action .. "target"] then
         local key = tostring(role) .. ":" .. tostring(debuffseal) .. ":" .. tostring(seal)
         if not missing_rotation_actions[key] then
@@ -614,7 +663,48 @@ local function MacroInRange(spell, unit)
 end
 
 local function RoleRotationInRange(debuffseal)
-    return not debuffseal or MacroInRange(_spell.judgement, "target")
+    return not debuffseal
+        or ShouldSkipJusticeJudgement(debuffseal)
+        or MacroInRange(_spell.judgement, "target")
+end
+
+local function IsUndeadOrDemon(unit)
+    local ok, _, creature_type_id = pcall(UnitCreatureType, unit)
+    if not ok or creature_type_id == nil
+        or (issecretvalue and issecretvalue(creature_type_id)) then
+        return false
+    end
+
+    return creature_type_id == 3 or creature_type_id == 6
+end
+
+local function IsHolyWrathTargetUndeadOrDemon()
+    return UnitAliveAndHostile("target") and IsUndeadOrDemon("target")
+end
+
+local function IsExorcismTargetInRange(spell, unit)
+    return IsUndeadOrDemon(unit) and MacroInRange(spell, unit)
+end
+
+local function ExorcismCooldownReady()
+    return not last_exorcism_cast or GetTime() - last_exorcism_cast >= 15
+end
+
+local function SpellCooldownReady(spell)
+    local ok, cooldown = pcall(C_Spell.GetSpellCooldown, spell)
+    if not ok or type(cooldown) ~= "table" then
+        return false
+    end
+
+    local start_time = cooldown.startTime
+    local duration = cooldown.duration
+    if start_time == nil or duration == nil
+        or issecretvalue(start_time)
+        or issecretvalue(duration) then
+        return false
+    end
+
+    return start_time == 0 or start_time + duration - _now < 0.5
 end
 
 local function OfferRareScannerMacro(combat)
@@ -632,10 +722,22 @@ local last_perception_signal
 
 local perception_cast_frame = CreateFrame("Frame")
 perception_cast_frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-perception_cast_frame:SetScript("OnEvent", function(_, _, unit, _, spellID)
-    if unit == "player"
-        and not (issecretvalue and issecretvalue(spellID))
-        and spellID == 20600 then
+perception_cast_frame:RegisterEvent("UNIT_SPELLCAST_SENT")
+perception_cast_frame:SetScript("OnEvent", function(_, event, unit, _, arg3, arg4)
+    if unit ~= "player" then
+        return
+    end
+
+    local spell_id = event == "UNIT_SPELLCAST_SENT" and arg4 or arg3
+    if spell_id and issecretvalue and issecretvalue(spell_id) then
+        return
+    end
+
+    local ok, spell_info = pcall(C_Spell.GetSpellInfo, spell_id)
+    local spell_name = ok and spell_info and spell_info.name
+    if spell_name == _spell.exorcism then
+        last_exorcism_cast = GetTime()
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" and spell_id == 20600 then
         perception_requested = false
     end
 end)
@@ -682,7 +784,7 @@ function _paladin.CoreLogic()
     local context = delphi.override.context or "pve"
     local role = delphi.override.role or "dps"
     local healing_on = delphi.override.healing ~= false
-    local combat = CombatStatus()
+    local combat, time_in_combat = CombatStatus()
     local _, _, stationary = MovementStatus()
     local tracking_spell = not combat and PreferredTrackingSpell() or nil
 
@@ -722,6 +824,27 @@ function _paladin.CoreLogic()
         end
         if not acted then
             if 1 == 0 then
+
+            elseif role ~= "off" and combat and stationary and time_in_combat > 10
+                and CastSpellUnits(
+                    _spell.holy_wrath
+                    ,_unitids.player
+                    ,SpellCooldownReady(_spell.holy_wrath)
+                        and EnoughManaForSpell(_spell.holy_wrath)
+                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
+                ) then
+                acted = true
+
+            elseif role ~= "off" and combat and time_in_combat >= 3
+                and ExorcismCooldownReady()
+                and CastSpellUnits(
+                    _spell.exorcism
+                    ,_unitids.target
+                    ,RemainingCooldown(_spell.exorcism) < 0.5
+                        and EnoughManaForSpell(_spell.exorcism)
+                    ,{ SpellUnit_UnitAliveAndHostile, IsExorcismTargetInRange }
+                ) then
+                acted = true
 
             elseif role == "main_tank" then
                 -- PVE / DD / Main Tank
@@ -909,6 +1032,27 @@ function _paladin.CoreLogic()
         end
         if not acted then
             if 1 == 0 then
+
+            elseif role ~= "off" and combat and stationary and time_in_combat > 10
+                and CastSpellUnits(
+                    _spell.holy_wrath
+                    ,_unitids.player
+                    ,SpellCooldownReady(_spell.holy_wrath)
+                        and EnoughManaForSpell(_spell.holy_wrath)
+                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
+                ) then
+                acted = true
+
+            elseif role ~= "off" and combat and time_in_combat >= 3
+                and ExorcismCooldownReady()
+                and CastSpellUnits(
+                    _spell.exorcism
+                    ,_unitids.target
+                    ,RemainingCooldown(_spell.exorcism) < 0.5
+                        and EnoughManaForSpell(_spell.exorcism)
+                    ,{ SpellUnit_UnitAliveAndHostile, IsExorcismTargetInRange }
+                ) then
+                acted = true
 
             elseif role == "main_tank" then
                 -- PVE / AOE / Main Tank
@@ -1098,6 +1242,27 @@ function _paladin.CoreLogic()
         if not acted then
             if 1 == 0 then
 
+            elseif role ~= "off" and combat and stationary and time_in_combat > 10
+                and CastSpellUnits(
+                    _spell.holy_wrath
+                    ,_unitids.player
+                    ,SpellCooldownReady(_spell.holy_wrath)
+                        and EnoughManaForSpell(_spell.holy_wrath)
+                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
+                ) then
+                acted = true
+
+            elseif role ~= "off" and combat and time_in_combat >= 3
+                and ExorcismCooldownReady()
+                and CastSpellUnits(
+                    _spell.exorcism
+                    ,_unitids.target
+                    ,RemainingCooldown(_spell.exorcism) < 0.5
+                        and EnoughManaForSpell(_spell.exorcism)
+                    ,{ SpellUnit_UnitAliveAndHostile, IsExorcismTargetInRange }
+                ) then
+                acted = true
+
             elseif role == "main_tank" then
                 -- PVP / DD / Main Tank
                 local aura, seal, blessing, debuffseal = RoleOverrides(role, context)
@@ -1249,6 +1414,27 @@ function _paladin.CoreLogic()
         end
         if not acted then
             if 1 == 0 then
+
+            elseif role ~= "off" and combat and stationary and time_in_combat > 10
+                and CastSpellUnits(
+                    _spell.holy_wrath
+                    ,_unitids.player
+                    ,SpellCooldownReady(_spell.holy_wrath)
+                        and EnoughManaForSpell(_spell.holy_wrath)
+                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
+                ) then
+                acted = true
+
+            elseif role ~= "off" and combat and time_in_combat >= 3
+                and ExorcismCooldownReady()
+                and CastSpellUnits(
+                    _spell.exorcism
+                    ,_unitids.target
+                    ,RemainingCooldown(_spell.exorcism) < 0.5
+                        and EnoughManaForSpell(_spell.exorcism)
+                    ,{ SpellUnit_UnitAliveAndHostile, IsExorcismTargetInRange }
+                ) then
+                acted = true
 
             elseif role == "main_tank" then
                 -- PVP / AOE / Main Tank

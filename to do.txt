@@ -1,3 +1,5 @@
-check moving, for healing
+check moving, for healing - done
 
 check time in combat, for holy wrath
+
+UI flyout only if spell is known
