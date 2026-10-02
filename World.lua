@@ -59,11 +59,41 @@ function siren_isle()
     return false
 end
 
+local NIGHT_WATCHMANS_TORCH_CAPITAL_CITIES = {
+    ["Dalaran"] = true,
+    ["Darnassus"] = true,
+    ["Exodar"] = true,
+    ["Ironforge"] = true,
+    ["Orgrimmar"] = true,
+    ["Shattrath City"] = true,
+    ["Silvermoon City"] = true,
+    ["Stormwind"] = true,
+    ["Stormwind City"] = true,
+    ["The Exodar"] = true,
+    ["Thunder Bluff"] = true,
+    ["Undercity"] = true,
+}
+
 function NightWatchmansTorchReady()
     local item_id = 280612
-    if InCombatLockdown() or not (C_Item and C_Item.GetItemCount)
+    if InCombatLockdown() or type(IsResting) ~= "function"
+        or type(GetRealZoneText) ~= "function"
+        or not (C_Item and C_Item.GetItemCount)
         or not (C_Container and C_Container.GetItemCooldown)
         or not (C_Item and C_Item.IsUsableItem) then
+        return false
+    end
+
+    local resting_ok, resting = pcall(IsResting)
+    if not resting_ok or type(resting) ~= "boolean" or resting then
+        return false
+    end
+
+    local zone_ok, zone_name = pcall(GetRealZoneText)
+    if not zone_ok or type(zone_name) ~= "string" then
+        return false
+    end
+    if NIGHT_WATCHMANS_TORCH_CAPITAL_CITIES[zone_name] then
         return false
     end
 
