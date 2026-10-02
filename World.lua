@@ -59,4 +59,41 @@ function siren_isle()
     return false
 end
 
+function NightWatchmansTorchReady()
+    local item_id = 280612
+    if InCombatLockdown() or not (C_Item and C_Item.GetItemCount)
+        or not (C_Container and C_Container.GetItemCooldown)
+        or not (C_Item and C_Item.IsUsableItem) then
+        return false
+    end
+
+    local count_ok, count = pcall(C_Item.GetItemCount, item_id, false, false, false)
+    if not count_ok or type(count) ~= "number"
+        or (issecretvalue and issecretvalue(count)) or count < 1 then
+        return false
+    end
+
+    local usable_ok, usable, insufficient_power =
+        pcall(C_Item.IsUsableItem, item_id)
+    if not usable_ok or type(usable) ~= "boolean"
+        or (issecretvalue and (issecretvalue(usable)
+            or issecretvalue(insufficient_power)))
+        or not usable or insufficient_power == true then
+        return false
+    end
+
+    local cooldown_ok, start_time, duration, enabled =
+        pcall(C_Container.GetItemCooldown, item_id)
+    if not cooldown_ok or type(start_time) ~= "number"
+        or type(duration) ~= "number" or type(enabled) ~= "number"
+        or (issecretvalue and (issecretvalue(start_time)
+            or issecretvalue(duration) or issecretvalue(enabled))) then
+        return false
+    end
+
+    return enabled == 1
+        and (start_time == 0 or duration == 0
+            or start_time + duration - GetTime() < 0.5)
+end
+
 print("world.lua loaded")

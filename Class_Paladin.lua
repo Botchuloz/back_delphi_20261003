@@ -105,6 +105,9 @@ _spell.greater_blessing_of_might = "Greater Blessing of Might" --Reworked
 _spell.repentance           = "Repentance" --TALENT
 
 local HEAL_ACTION = "DelphiPaladinHeal"
+local NIGHT_WATCHMANS_TORCH_ACTION = "DelphiPaladinNightWatchmansTorch"
+local NIGHT_WATCHMANS_TORCH_BUFF = "Night Watchman's Torch"
+local NIGHT_WATCHMANS_TORCH_ITEM_ID = 280612
 
 local ROLE_ROTATION_MACROS = {
     dps = {name = "DPSSequence"},
@@ -1033,6 +1036,13 @@ function _paladin.SetBinds()
 
     BindSpellToUnit("start_attack","","","/startattack",true)
     -- Role and Healing are selected in the Delphi toggle UI.
+    BindSpellToUnit(
+        NIGHT_WATCHMANS_TORCH_ACTION,
+        "",
+        "/use item:" .. NIGHT_WATCHMANS_TORCH_ITEM_ID,
+        "",
+        true
+    )
 
     --Seals - player only
     BindSpellToUnits(_spell.seal_of_righteousness, _unitids.player)
@@ -1267,14 +1277,19 @@ end
 
 local missing_rotation_actions = {}
 local function OfferRoleRotation(role, debuffseal, seal)
-    local last_dps_seal_cast = seal and seal ~= false
+    local current_target_guid = UnitGUID("target")
+    local dps_seal_cast = seal and seal ~= false
         and last_paladin_seal_cast[seal]
+    local last_dps_seal_cast = dps_seal_cast and dps_seal_cast.time
     local debuff_seal_setup_pending = debuffseal and debuffseal ~= false
         and debuffseal ~= seal
         and last_paladin_seal_cast[debuffseal]
-        and (not last_dps_seal_cast
-            or last_paladin_seal_cast[debuffseal] > last_dps_seal_cast)
-    if last_dps_seal_cast
+        and last_paladin_seal_cast[debuffseal].target_guid == current_target_guid
+        and (not dps_seal_cast
+            or dps_seal_cast.target_guid ~= current_target_guid
+            or last_paladin_seal_cast[debuffseal].time > last_dps_seal_cast)
+    if current_target_guid and last_dps_seal_cast
+        and dps_seal_cast.target_guid == current_target_guid
         and GetTime() - last_dps_seal_cast >= 27
         and not debuff_seal_setup_pending then
         _global.SetSpellUnit(seal, "player")
@@ -1384,7 +1399,10 @@ perception_cast_frame:SetScript("OnEvent", function(_, event, unit, _, arg3, arg
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         for _, variant in ipairs(SEAL_VARIANTS) do
             if variant.spell and spell_name == variant.spell then
-                last_paladin_seal_cast[variant.spell] = GetTime()
+                last_paladin_seal_cast[variant.spell] = {
+                    time = GetTime(),
+                    target_guid = UnitGUID("target"),
+                }
                 break
             end
         end
@@ -1452,6 +1470,10 @@ function _paladin.CoreLogic()
             ,{ SpellUnit_AliveAndFriendly }
         ) then
         -- Keep recommending until the player successfully casts Perception.
+    elseif not combat and stationary
+        and SpellUnit_BuffExpired(NIGHT_WATCHMANS_TORCH_BUFF, "player")
+        and NightWatchmansTorchReady() then
+        _global.SetSpellUnit(NIGHT_WATCHMANS_TORCH_ACTION)
     elseif role == "off" and not healing_on then
         OfferRareScannerMacro(combat)
     elseif tracking_spell and not TrackingSelectedOrUnknown() and CastSpellUnits(
