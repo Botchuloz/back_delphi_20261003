@@ -135,6 +135,7 @@ local SEAL_VARIANTS = {
 local role_rotation_actions = {}
 local no_justice_judgement_actions = {}
 local last_exorcism_cast
+local last_paladin_seal_cast = {}
 
 local function TargetIsHumanoidForJustice()
     local ok, _, creature_type_id = pcall(UnitCreatureType, "target")
@@ -1266,6 +1267,20 @@ end
 
 local missing_rotation_actions = {}
 local function OfferRoleRotation(role, debuffseal, seal)
+    local last_dps_seal_cast = seal and seal ~= false
+        and last_paladin_seal_cast[seal]
+    local debuff_seal_setup_pending = debuffseal and debuffseal ~= false
+        and debuffseal ~= seal
+        and last_paladin_seal_cast[debuffseal]
+        and (not last_dps_seal_cast
+            or last_paladin_seal_cast[debuffseal] > last_dps_seal_cast)
+    if last_dps_seal_cast
+        and GetTime() - last_dps_seal_cast >= 27
+        and not debuff_seal_setup_pending then
+        _global.SetSpellUnit(seal, "player")
+        return true
+    end
+
     local by_debuffseal = role_rotation_actions[role]
     local by_seal = by_debuffseal and by_debuffseal[debuffseal]
     local action = by_seal and by_seal[seal]
@@ -1366,8 +1381,16 @@ perception_cast_frame:SetScript("OnEvent", function(_, event, unit, _, arg3, arg
     local spell_name = ok and spell_info and spell_info.name
     if spell_name == _spell.exorcism then
         last_exorcism_cast = GetTime()
-    elseif event == "UNIT_SPELLCAST_SUCCEEDED" and spell_id == 20600 then
-        perception_requested = false
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        for _, variant in ipairs(SEAL_VARIANTS) do
+            if variant.spell and spell_name == variant.spell then
+                last_paladin_seal_cast[variant.spell] = GetTime()
+                break
+            end
+        end
+        if spell_id == 20600 then
+            perception_requested = false
+        end
     end
 end)
 
