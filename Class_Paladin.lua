@@ -108,6 +108,34 @@ local HEAL_ACTION = "DelphiPaladinHeal"
 local NIGHT_WATCHMANS_TORCH_ACTION = "DelphiPaladinNightWatchmansTorch"
 local NIGHT_WATCHMANS_TORCH_BUFF = "Night Watchman's Torch"
 local NIGHT_WATCHMANS_TORCH_ITEM_ID = 280612
+local paladin_interact_binding_owner
+
+local function EnablePaladinInteractKey()
+    local interact_flags = Enum and Enum.SoftTargetEnableFlags
+    if not interact_flags or interact_flags.Any == nil
+        or type(GetCVar) ~= "function" or type(SetCVar) ~= "function" then
+        print("Paladin interact key unavailable: WoW's Interact Key setting API is missing.")
+        return false
+    end
+
+    local read_ok, current_value = pcall(GetCVar, "softTargetInteract")
+    if read_ok and tonumber(current_value) == interact_flags.Any then
+        return true
+    end
+
+    local set_ok = pcall(SetCVar, "softTargetInteract", interact_flags.Any)
+    if not set_ok then
+        print("Paladin interact key unavailable: could not enable WoW's Interact Key setting.")
+        return false
+    end
+
+    local verify_ok, enabled_value = pcall(GetCVar, "softTargetInteract")
+    if not verify_ok or tonumber(enabled_value) ~= interact_flags.Any then
+        print("Paladin interact key unavailable: WoW did not enable the Interact Key setting.")
+        return false
+    end
+    return true
+end
 
 local ROLE_ROTATION_MACROS = {
     dps = {name = "DPSSequence"},
@@ -1033,6 +1061,23 @@ function _paladin.SetBinds()
             "/cast [@target,help][] " .. cleanse_spell
         )
     end
+
+    paladin_interact_binding_owner = CreateFrame("Frame")
+    if type(SetOverrideBinding) == "function" then
+        local ok = pcall(
+            SetOverrideBinding,
+            paladin_interact_binding_owner,
+            true,
+            "=",
+            "INTERACTTARGET"
+        )
+        if not ok then
+            print("Paladin interact key not bound: unable to override '='.")
+        end
+    else
+        print("Paladin interact key not bound: SetOverrideBinding is unavailable.")
+    end
+    EnablePaladinInteractKey()
 
     BindSpellToUnit("start_attack","","","/startattack",true)
     -- Role and Healing are selected in the Delphi toggle UI.
