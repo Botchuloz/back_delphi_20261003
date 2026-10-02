@@ -77,6 +77,7 @@ local NIGHT_WATCHMANS_TORCH_CAPITAL_CITIES = {
 function NightWatchmansTorchReady()
     local item_id = 280612
     if InCombatLockdown() or type(IsResting) ~= "function"
+        or type(IsSwimming) ~= "function"
         or type(GetRealZoneText) ~= "function"
         or not (C_Item and C_Item.GetItemCount)
         or not (C_Container and C_Container.GetItemCooldown)
@@ -86,6 +87,11 @@ function NightWatchmansTorchReady()
 
     local resting_ok, resting = pcall(IsResting)
     if not resting_ok or type(resting) ~= "boolean" or resting then
+        return false
+    end
+
+    local swimming_ok, swimming = pcall(IsSwimming)
+    if not swimming_ok or type(swimming) ~= "boolean" or swimming then
         return false
     end
 
