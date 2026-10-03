@@ -169,6 +169,7 @@ local last_exorcism_cast
 local last_paladin_seal_cast = {}
 local last_paladin_judgement_target_generation
 local paladin_target_generation = 0
+local seal_refresh_diagnostic_reported = {}
 
 local function TargetIsKnownNonHumanoidForJustice()
     local ok, _, creature_type_id = pcall(UnitCreatureType, "target")
@@ -307,7 +308,7 @@ local function BindRoleRotationMacros()
 end
 
 local HEAL_MACRO = [[
-/use [@target,help][@targettarget,help][@focustargettarget,help][@focus,help] Flash of Light
+/use [@target,help][@targettarget,help][@focustargettarget,help] Flash of Light
 ]]
 
 local holy_spec = 1
@@ -1331,8 +1332,37 @@ local function RoleOverrides(role, context)
         ResolveOverride(delphi.override.debuffseal, auto_debuffseal)
 end
 
+local function ClearStaleHostileRotationRecommendation()
+    if UnitAliveAndHostile("target") then
+        return
+    end
+
+    local spell = _global.last_spell
+    local unit = _global.last_unit
+    if unit == "player" then
+        for _, variant in ipairs(SEAL_VARIANTS) do
+            if variant.spell and spell == variant.spell then
+                _global.Off()
+                return
+            end
+        end
+    elseif unit == "target" then
+        for _, role_config in pairs(ROLE_ROTATION_MACROS) do
+            local prefix = "DelphiPaladin" .. role_config.name .. "_Judgement"
+            if type(spell) == "string" and spell:sub(1, #prefix) == prefix then
+                _global.Off()
+                return
+            end
+        end
+    end
+end
+
 local missing_rotation_actions = {}
 local function OfferRoleRotation(role, debuffseal, seal)
+    if not UnitAliveAndHostile("target") then
+        return false
+    end
+
     local dps_seal_cast = seal and seal ~= false
         and last_paladin_seal_cast[seal]
     local last_dps_seal_cast = dps_seal_cast and dps_seal_cast.time
@@ -1359,6 +1389,10 @@ local function OfferRoleRotation(role, debuffseal, seal)
         and GetTime() - last_dps_seal_cast >= 27
         and not debuff_seal_setup_pending
         and not target_judgement_pending then
+        if not seal_refresh_diagnostic_reported[seal] then
+            print("Seal timer: recommending", seal, "refresh after 27 seconds.")
+            seal_refresh_diagnostic_reported[seal] = true
+        end
         _global.SetSpellUnit(seal, "player")
         return true
     end
@@ -1445,6 +1479,8 @@ end
 
 local perception_requested = false
 local last_perception_signal
+local last_perception_diagnostic
+local perception_offer_diagnostic_reported = false
 
 local perception_cast_frame = CreateFrame("Frame")
 perception_cast_frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
@@ -1469,7 +1505,13 @@ perception_cast_frame:SetScript("OnEvent", function(_, event, unit, _, arg3, arg
     local spell_name = ok and spell_info and spell_info.name
     if spell_name == _spell.exorcism then
         last_exorcism_cast = GetTime()
-    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+    end
+    if spell_name == delphi.racial.perception
+        and (event == "UNIT_SPELLCAST_SENT"
+            or event == "UNIT_SPELLCAST_SUCCEEDED") then
+        print("Perception diagnostic: player spellcast event", event, spell_name)
+    end
+    if event == "UNIT_SPELLCAST_SUCCEEDED" then
         if spell_name == _spell.judgement then
             last_paladin_judgement_target_generation = paladin_target_generation
         end
@@ -1479,21 +1521,37 @@ perception_cast_frame:SetScript("OnEvent", function(_, event, unit, _, arg3, arg
                     time = GetTime(),
                     target_generation = paladin_target_generation,
                 }
+                seal_refresh_diagnostic_reported[variant.spell] = false
+                print("Seal timer: observed successful", variant.spell,
+                    "cast; 27-second timer started.")
                 break
             end
         end
         if spell_id == 20600 then
             perception_requested = false
+            perception_offer_diagnostic_reported = false
+            print("Perception diagnostic: cast succeeded; request cleared.")
         end
     end
 end)
 
 local function OnSpyGodModeDetected(_, _, isStealth)
-    if not isStealth then
+    local now = GetTime()
+    if not last_perception_diagnostic
+        or now - last_perception_diagnostic >= 2 then
+        print("Perception diagnostic: SpyGodMode signal; third argument type/value:",
+            type(isStealth), isStealth)
+        last_perception_diagnostic = now
+    end
+
+    local secret_ok, is_secret = true, false
+    if type(issecretvalue) == "function" then
+        secret_ok, is_secret = pcall(issecretvalue, isStealth)
+    end
+    if not secret_ok or is_secret or type(isStealth) ~= "boolean" or not isStealth then
         return
     end
 
-    local now = GetTime()
     if last_perception_signal and now - last_perception_signal < 2 then
         return
     end
@@ -1501,6 +1559,8 @@ local function OnSpyGodModeDetected(_, _, isStealth)
     -- SpyGodMode can report both spell start and success for one stealth cast.
     last_perception_signal = now
     perception_requested = true
+    perception_offer_diagnostic_reported = false
+    print("Perception diagnostic: stealth detected; Perception requested.")
 end
 
 local function AttachSpyGodMode()
@@ -1510,10 +1570,12 @@ local function AttachSpyGodMode()
     end
 
     spy:On("SGM_DETECTED", OnSpyGodModeDetected)
+    print("Perception diagnostic: attached to SpyGodMode SGM_DETECTED.")
     return true
 end
 
 if not AttachSpyGodMode() then
+    print("Perception diagnostic: SpyGodMode API not available yet; waiting for ADDON_LOADED.")
     local frame = CreateFrame("Frame")
     frame:RegisterEvent("ADDON_LOADED")
     frame:SetScript("OnEvent", function(self)
@@ -1521,6 +1583,40 @@ if not AttachSpyGodMode() then
             self:UnregisterEvent("ADDON_LOADED")
         end
     end)
+end
+
+local function ReportPerceptionBlocked(reason)
+    if not perception_offer_diagnostic_reported then
+        print("Perception diagnostic: request not offered;", reason)
+        perception_offer_diagnostic_reported = true
+    end
+end
+
+local function OfferPerception()
+    local spell = delphi.racial.perception
+    if not spell then
+        ReportPerceptionBlocked("racial spell was not detected.")
+        return false
+    end
+
+    if RemainingCooldown(spell) >= 0.5 then
+        ReportPerceptionBlocked("spell cooldown is not ready.")
+        return false
+    end
+    if not EnoughManaForSpell(spell) then
+        ReportPerceptionBlocked("not enough mana.")
+        return false
+    end
+    if not CastSpellUnits(
+        spell,
+        _unitids.player,
+        true,
+        {SpellUnit_AliveAndFriendly}
+    ) then
+        ReportPerceptionBlocked("spell binding or player eligibility check rejected it.")
+        return false
+    end
+    return true
 end
 
 -- Seal maintenance is combat-only: enabling Godly out of combat must not
@@ -1534,17 +1630,15 @@ function _paladin.CoreLogic()
     local _, _, stationary = MovementStatus()
     local tracking_spell = not combat and PreferredTrackingSpell() or nil
 
+    ClearStaleHostileRotationRecommendation()
+
     if 1 == 0 then
     elseif RedLight() then
+        if perception_requested then
+            ReportPerceptionBlocked("recommendations are disabled by RedLight.")
+        end
         _global.Off()
-    elseif perception_requested and delphi.racial.perception
-        and CastSpellUnits(
-            delphi.racial.perception
-            ,_unitids.player
-            ,RemainingCooldown(delphi.racial.perception) < 0.5
-                and EnoughManaForSpell(delphi.racial.perception)
-            ,{ SpellUnit_AliveAndFriendly }
-        ) then
+    elseif perception_requested and OfferPerception() then
         -- Keep recommending until the player successfully casts Perception.
     elseif not combat and stationary
         and SpellUnit_BuffExpired(NIGHT_WATCHMANS_TORCH_BUFF, "player")
@@ -1575,16 +1669,6 @@ function _paladin.CoreLogic()
         if not acted then
             if 1 == 0 then
 
-            elseif role ~= "off" and combat and stationary and time_in_combat > 10
-                and CastSpellUnits(
-                    _spell.holy_wrath
-                    ,_unitids.player
-                    ,SpellCooldownReady(_spell.holy_wrath)
-                        and EnoughManaForSpell(_spell.holy_wrath)
-                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
-                ) then
-                acted = true
-
             elseif role ~= "off" and combat and time_in_combat >= 3
                 and ExorcismCooldownReady()
                 and CastSpellUnits(
@@ -1593,6 +1677,16 @@ function _paladin.CoreLogic()
                     ,RemainingCooldown(_spell.exorcism) < 0.5
                         and EnoughManaForSpell(_spell.exorcism)
                     ,{ SpellUnit_UnitAliveAndHostile, IsExorcismTargetInRange }
+                ) then
+                acted = true
+
+            elseif role ~= "off" and combat and stationary and time_in_combat > 10
+                and CastSpellUnits(
+                    _spell.holy_wrath
+                    ,_unitids.player
+                    ,SpellCooldownReady(_spell.holy_wrath)
+                        and EnoughManaForSpell(_spell.holy_wrath)
+                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
                 ) then
                 acted = true
 
@@ -1795,16 +1889,6 @@ function _paladin.CoreLogic()
         if not acted then
             if 1 == 0 then
 
-            elseif role ~= "off" and combat and stationary and time_in_combat > 10
-                and CastSpellUnits(
-                    _spell.holy_wrath
-                    ,_unitids.player
-                    ,SpellCooldownReady(_spell.holy_wrath)
-                        and EnoughManaForSpell(_spell.holy_wrath)
-                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
-                ) then
-                acted = true
-
             elseif role ~= "off" and combat and time_in_combat >= 3
                 and ExorcismCooldownReady()
                 and CastSpellUnits(
@@ -1813,6 +1897,16 @@ function _paladin.CoreLogic()
                     ,RemainingCooldown(_spell.exorcism) < 0.5
                         and EnoughManaForSpell(_spell.exorcism)
                     ,{ SpellUnit_UnitAliveAndHostile, IsExorcismTargetInRange }
+                ) then
+                acted = true
+
+            elseif role ~= "off" and combat and stationary and time_in_combat > 10
+                and CastSpellUnits(
+                    _spell.holy_wrath
+                    ,_unitids.player
+                    ,SpellCooldownReady(_spell.holy_wrath)
+                        and EnoughManaForSpell(_spell.holy_wrath)
+                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
                 ) then
                 acted = true
 
@@ -2016,16 +2110,6 @@ function _paladin.CoreLogic()
         if not acted then
             if 1 == 0 then
 
-            elseif role ~= "off" and combat and stationary and time_in_combat > 10
-                and CastSpellUnits(
-                    _spell.holy_wrath
-                    ,_unitids.player
-                    ,SpellCooldownReady(_spell.holy_wrath)
-                        and EnoughManaForSpell(_spell.holy_wrath)
-                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
-                ) then
-                acted = true
-
             elseif role ~= "off" and combat and time_in_combat >= 3
                 and ExorcismCooldownReady()
                 and CastSpellUnits(
@@ -2034,6 +2118,16 @@ function _paladin.CoreLogic()
                     ,RemainingCooldown(_spell.exorcism) < 0.5
                         and EnoughManaForSpell(_spell.exorcism)
                     ,{ SpellUnit_UnitAliveAndHostile, IsExorcismTargetInRange }
+                ) then
+                acted = true
+
+            elseif role ~= "off" and combat and stationary and time_in_combat > 10
+                and CastSpellUnits(
+                    _spell.holy_wrath
+                    ,_unitids.player
+                    ,SpellCooldownReady(_spell.holy_wrath)
+                        and EnoughManaForSpell(_spell.holy_wrath)
+                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
                 ) then
                 acted = true
 
@@ -2198,16 +2292,6 @@ function _paladin.CoreLogic()
         if not acted then
             if 1 == 0 then
 
-            elseif role ~= "off" and combat and stationary and time_in_combat > 10
-                and CastSpellUnits(
-                    _spell.holy_wrath
-                    ,_unitids.player
-                    ,SpellCooldownReady(_spell.holy_wrath)
-                        and EnoughManaForSpell(_spell.holy_wrath)
-                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
-                ) then
-                acted = true
-
             elseif role ~= "off" and combat and time_in_combat >= 3
                 and ExorcismCooldownReady()
                 and CastSpellUnits(
@@ -2216,6 +2300,16 @@ function _paladin.CoreLogic()
                     ,RemainingCooldown(_spell.exorcism) < 0.5
                         and EnoughManaForSpell(_spell.exorcism)
                     ,{ SpellUnit_UnitAliveAndHostile, IsExorcismTargetInRange }
+                ) then
+                acted = true
+
+            elseif role ~= "off" and combat and stationary and time_in_combat > 10
+                and CastSpellUnits(
+                    _spell.holy_wrath
+                    ,_unitids.player
+                    ,SpellCooldownReady(_spell.holy_wrath)
+                        and EnoughManaForSpell(_spell.holy_wrath)
+                    ,{ SpellUnit_AliveAndFriendly, IsHolyWrathTargetUndeadOrDemon }
                 ) then
                 acted = true
 
