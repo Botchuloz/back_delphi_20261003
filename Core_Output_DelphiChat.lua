@@ -19,8 +19,26 @@ function DelphiPrint(...)
     local parts = {}
 
     for i = 1, select("#", ...) do
-        local ok, text = pcall(tostring, select(i, ...))
-        parts[i] = ok and text or "<unreadable>"
+        local value = select(i, ...)
+        local secret = false
+        if type(issecretvalue) == "function" then
+            local secret_ok, is_secret = pcall(issecretvalue, value)
+            secret = not secret_ok or is_secret == true
+        end
+
+        if secret then
+            parts[i] = "<secret>"
+        else
+            local ok, text = pcall(tostring, value)
+            if ok and type(issecretvalue) == "function" then
+                local secret_ok, is_secret = pcall(issecretvalue, text)
+                if not secret_ok or is_secret == true then
+                    text = "<secret>"
+                    ok = true
+                end
+            end
+            parts[i] = ok and text or "<unreadable>"
+        end
     end
 
     local message = "|cff66ccff[Delphi]|r " .. table.concat(parts, " ")

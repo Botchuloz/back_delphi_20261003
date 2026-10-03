@@ -167,20 +167,22 @@ local role_rotation_actions = {}
 local no_justice_judgement_actions = {}
 local last_exorcism_cast
 local last_paladin_seal_cast = {}
+local last_paladin_judgement_target_generation
+local paladin_target_generation = 0
 
-local function TargetIsHumanoidForJustice()
+local function TargetIsKnownNonHumanoidForJustice()
     local ok, _, creature_type_id = pcall(UnitCreatureType, "target")
     if not ok or creature_type_id == nil
         or (issecretvalue and issecretvalue(creature_type_id)) then
         return false
     end
 
-    return creature_type_id == 7
+    return creature_type_id ~= 7
 end
 
 local function ShouldSkipJusticeJudgement(debuffseal)
     return debuffseal == _spell.seal_of_justice
-        and not TargetIsHumanoidForJustice()
+        and TargetIsKnownNonHumanoidForJustice()
 end
 
 local function RoleRotationActionName(role, debuffseal, seal, skip_justice_judgement)
@@ -221,17 +223,26 @@ local function CreateRoleRotationMacro(role, debuffseal, seal, skip_justice_judg
     local lines = {"/startattack"}
 
     if debuffseal then
-        local sequence = debuffseal
-        if not skip_justice_judgement then
-            sequence = sequence .. ",judgement"
+        if seal == debuffseal then
+            lines[#lines + 1] = "/castsequence [@target,harm] reset=combat "
+                .. debuffseal .. ",null"
+            if not skip_justice_judgement then
+                lines[#lines + 1] = "/castsequence [@target,harm] reset=target "
+                    .. "judgement,null"
+            end
+        else
+            local sequence = debuffseal
+            if not skip_justice_judgement then
+                sequence = sequence .. ",judgement"
+            end
+            if seal and seal ~= debuffseal then
+                sequence = sequence .. "," .. seal
+            end
+            lines[#lines + 1] = "/castsequence [@target,harm] reset=target "
+                .. sequence .. ",null"
         end
-        if seal and seal ~= debuffseal then
-            sequence = sequence .. "," .. seal
-        end
-        lines[#lines + 1] = "/castsequence [@target,harm] reset=target "
-            .. sequence .. ",null"
     elseif seal then
-        lines[#lines + 1] = "/castsequence [@target,harm] reset=target "
+        lines[#lines + 1] = "/castsequence [@target,harm] reset=combat "
             .. seal .. ",null"
     end
 
@@ -1322,21 +1333,32 @@ end
 
 local missing_rotation_actions = {}
 local function OfferRoleRotation(role, debuffseal, seal)
-    local current_target_guid = UnitGUID("target")
     local dps_seal_cast = seal and seal ~= false
         and last_paladin_seal_cast[seal]
     local last_dps_seal_cast = dps_seal_cast and dps_seal_cast.time
+    local target_judgement_required = debuffseal and debuffseal ~= false
+        and debuffseal == seal
+        and not ShouldSkipJusticeJudgement(debuffseal)
+    local target_judgement_pending = target_judgement_required
+        and last_paladin_judgement_target_generation ~= paladin_target_generation
     local debuff_seal_setup_pending = debuffseal and debuffseal ~= false
         and debuffseal ~= seal
         and last_paladin_seal_cast[debuffseal]
-        and last_paladin_seal_cast[debuffseal].target_guid == current_target_guid
+        and last_paladin_seal_cast[debuffseal].target_generation == paladin_target_generation
         and (not dps_seal_cast
-            or dps_seal_cast.target_guid ~= current_target_guid
+            or dps_seal_cast.target_generation ~= paladin_target_generation
             or last_paladin_seal_cast[debuffseal].time > last_dps_seal_cast)
-    if current_target_guid and last_dps_seal_cast
-        and dps_seal_cast.target_guid == current_target_guid
+    local target_rotation_ready = not debuffseal or debuffseal == false
+        or debuffseal == seal
+            and (not target_judgement_required
+                or last_paladin_judgement_target_generation == paladin_target_generation)
+        or dps_seal_cast
+            and dps_seal_cast.target_generation == paladin_target_generation
+    if last_dps_seal_cast
+        and target_rotation_ready
         and GetTime() - last_dps_seal_cast >= 27
-        and not debuff_seal_setup_pending then
+        and not debuff_seal_setup_pending
+        and not target_judgement_pending then
         _global.SetSpellUnit(seal, "player")
         return true
     end
@@ -1427,7 +1449,13 @@ local last_perception_signal
 local perception_cast_frame = CreateFrame("Frame")
 perception_cast_frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 perception_cast_frame:RegisterEvent("UNIT_SPELLCAST_SENT")
+perception_cast_frame:RegisterEvent("PLAYER_TARGET_CHANGED")
 perception_cast_frame:SetScript("OnEvent", function(_, event, unit, _, arg3, arg4)
+    if event == "PLAYER_TARGET_CHANGED" then
+        paladin_target_generation = paladin_target_generation + 1
+        return
+    end
+
     if unit ~= "player" then
         return
     end
@@ -1442,11 +1470,14 @@ perception_cast_frame:SetScript("OnEvent", function(_, event, unit, _, arg3, arg
     if spell_name == _spell.exorcism then
         last_exorcism_cast = GetTime()
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        if spell_name == _spell.judgement then
+            last_paladin_judgement_target_generation = paladin_target_generation
+        end
         for _, variant in ipairs(SEAL_VARIANTS) do
             if variant.spell and spell_name == variant.spell then
                 last_paladin_seal_cast[variant.spell] = {
                     time = GetTime(),
-                    target_guid = UnitGUID("target"),
+                    target_generation = paladin_target_generation,
                 }
                 break
             end

@@ -1,5 +1,13 @@
 local print = DelphiPrint
 
+local function UnitNameMatches(unit, expected_name)
+    local ok, unit_name = pcall(UnitName, unit)
+    if not ok or (issecretvalue and issecretvalue(unit_name)) then
+        return false
+    end
+    return unit_name == expected_name
+end
+
 --local unit_health,unit_health_perc,unit_health_max,unit_health_deficit = UnitHealthInfo(unit)
 function UnitHealthInfo(unit)
     local unit_health = SafeNumber(UnitHealth(unit), 0)
@@ -30,8 +38,8 @@ function UnitAlive(unit)
 end
 
 function UnitAliveAndHostile(unit)
-    local unit_name = UnitName(unit) or ""
-    if unit_name == "Training Dummy" or unit_name == "Raider's Training Dummy" then
+    if UnitNameMatches(unit, "Training Dummy")
+        or UnitNameMatches(unit, "Raider's Training Dummy") then
         return true
     end
     local alive = UnitAlive(unit)
@@ -82,12 +90,11 @@ end
 --/run print(UnitIsBossFrameUnit("target"))
 function UnitIsBossFrameUnit(unit)
     --testing dummy!
-    local unit_name = UnitName(unit) or ""
-    if unit_name == "Raider's Training Dummy" then
+    if UnitNameMatches(unit, "Raider's Training Dummy") then
         return true
     end
 
-    if unit_name == "Highlord's Nemesis Trainer" then
+    if UnitNameMatches(unit, "Highlord's Nemesis Trainer") then
         return true
     end
 
